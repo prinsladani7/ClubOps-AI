@@ -42,6 +42,8 @@ export default function LoginPage() {
   // 1-Click Demo Persona handler
   const handleSelectPersona = (userId: string) => {
     loginAsPersona(userId);
+    const selected = users.find((u) => u.id === userId);
+    showToast(`Authenticated as ${selected?.name || "User"} (${selected?.role.toUpperCase()})`);
     router.push("/");
   };
 
@@ -54,6 +56,7 @@ export default function LoginPage() {
     try {
       const res = await login(email, password);
       if (res.success) {
+        showToast("Welcome back! Authenticated successfully.");
         router.push("/");
       } else {
         setErrorMessage(res.error || "Authentication failed.");

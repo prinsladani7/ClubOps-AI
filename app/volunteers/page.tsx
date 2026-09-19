@@ -12,24 +12,30 @@ import {
   AlertTriangle,
   ArrowRight,
   Filter,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { WorkloadGauge } from "@/components/ui/WorkloadGauge";
+import { useVolunteerRebalance } from "@/lib/hooks/useVolunteerRebalance";
 import { Volunteer } from "@/types";
 import { db } from "@/lib/db";
 
 export default function VolunteersPage() {
-  const { volunteers, tasks, currentUser, showToast } = useClubOps();
+  const { volunteers, tasks, currentUser, updateTaskItem, showToast } = useClubOps();
+  const { recommendations } = useVolunteerRebalance(volunteers, tasks);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterAvailability, setFilterAvailability] = useState<string>("all");
   const [activeVolunteer, setActiveVolunteer] = useState<Volunteer | null>(null);
 
-  // AI Assignment Recommendation state
+  // AI Assignment Recommendation modal
   const [showAiSuggestModal, setShowAiSuggestModal] = useState(false);
+  const [showRebalanceModal, setShowRebalanceModal] = useState(false);
   const [taskQuery, setTaskQuery] = useState("Setup 40kVA standby diesel generator and circuit transfer switch");
   const [aiSuggestions, setAiSuggestions] = useState<
     { volunteer: Volunteer; score: number; rationale: string }[]
@@ -55,40 +61,96 @@ export default function VolunteersPage() {
     setAiSuggestions(results.slice(0, 4));
   };
 
+  const executeRebalance = (rec: typeof recommendations[0]) => {
+    updateTaskItem(rec.taskToReassign.id, {
+      owner_id: rec.suggestedVolunteer.id,
+      owner: rec.suggestedVolunteer.user,
+    });
+    showToast(
+      `Reassigned "${rec.taskToReassign.title}" from ${rec.overloadedVolunteer.user?.name} to ${rec.suggestedVolunteer.user?.name}`
+    );
+    setShowRebalanceModal(false);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-cyan-400 uppercase tracking-wider font-mono">
+            <span>Personnel Telemetry</span>
+            <span>•</span>
+            <span>24 Active Committee Leads</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5 mt-0.5">
             <Users className="w-6 h-6 text-indigo-400" />
             <span>Volunteer & Personnel Workload Intelligence</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Tracking 24 student committee volunteers across engineering, hospitality, stage, and logistics tracks.
+            Tracking student committee leads across technical, hospitality, stage, and logistics tracks.
           </p>
         </div>
 
-        <Button
-          onClick={() => {
-            setShowAiSuggestModal(true);
-            const results = db.suggestVolunteersForTask(taskQuery, ["generator", "electrical", "setup"]);
-            setAiSuggestions(results.slice(0, 4));
-          }}
-          className="gap-2 text-xs h-9 bg-indigo-600 hover:bg-indigo-500 shadow-aiGlow"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>AI Task Assignment Assistant</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {recommendations.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRebalanceModal(true)}
+              className="gap-2 text-xs h-9 border-amber-500/50 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>AI Rebalance ({recommendations.length})</span>
+            </Button>
+          )}
+
+          <Button
+            onClick={() => {
+              setShowAiSuggestModal(true);
+              const results = db.suggestVolunteersForTask(taskQuery, ["generator", "electrical", "setup"]);
+              setAiSuggestions(results.slice(0, 4));
+            }}
+            className="gap-2 text-xs h-9 bg-indigo-600 hover:bg-indigo-500 shadow-aiGlow"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>AI Task Assignment</span>
+          </Button>
+        </div>
       </div>
 
+      {/* Burnout Risk Notification Banner if any overloaded */}
+      {recommendations.length > 0 && (
+        <div className="p-4 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-950/30 via-slate-900/60 to-slate-950/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">
+                Volunteer Burnout Risk Detected: {recommendations[0].overloadedVolunteer.user?.name}
+              </h4>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                {recommendations[0].reason}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setShowRebalanceModal(true)}
+            className="h-8 text-xs bg-amber-600 hover:bg-amber-500 text-black font-semibold flex-shrink-0"
+          >
+            Review Rebalance
+          </Button>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-slate-800 bg-slate-900/40">
-        <div className="flex items-center gap-2 w-full sm:w-80">
+      <div className="p-4 rounded-2xl border border-slate-800/80 bg-slate-950/60 backdrop-blur-md flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 flex-1 min-w-[240px]">
           <Search className="w-4 h-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Search volunteers by name or skill..."
+            placeholder="Search volunteers by name, email, or skill tag..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
@@ -96,17 +158,22 @@ export default function VolunteersPage() {
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-400">Availability:</span>
-          <select
-            value={filterAvailability}
-            onChange={(e) => setFilterAvailability(e.target.value)}
-            className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1 text-slate-200 focus:outline-none"
-          >
-            <option value="all">All ({volunteers.length})</option>
-            <option value="available">Available</option>
-            <option value="busy">Busy</option>
-            <option value="overloaded">Overloaded (Alert)</option>
-          </select>
+          <span className="text-slate-400 text-[11px]">Availability:</span>
+          <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-[11px]">
+            {["all", "available", "busy", "overloaded"].map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setFilterAvailability(opt)}
+                className={`px-2 py-0.5 rounded-md font-mono uppercase transition-colors ${
+                  filterAvailability === opt
+                    ? "bg-indigo-600 text-white font-semibold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -118,22 +185,24 @@ export default function VolunteersPage() {
             <Card
               key={vol.id}
               onClick={() => setActiveVolunteer(vol)}
-              className={`p-4 cursor-pointer hover:border-indigo-500/50 hover:shadow-aiGlow transition-all ${
+              className={`p-4 cursor-pointer hover:border-indigo-500/50 hover:shadow-aiGlow transition-all space-y-3.5 group rounded-2xl ${
                 vol.availability === "overloaded"
-                  ? "border-rose-500/40 bg-rose-950/10"
-                  : "border-slate-800 bg-slate-950/60"
+                  ? "border-rose-500/50 bg-rose-950/15"
+                  : "border-slate-800/80 bg-slate-950/60"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-indigo-300">
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-sm text-indigo-300 group-hover:border-indigo-500 transition-colors shadow-sm">
                     {vol.user?.name
                       .split(" ")
                       .map((n) => n[0])
                       .join("")}
                   </div>
                   <div>
-                    <h3 className="text-xs font-semibold text-white">{vol.user?.name}</h3>
+                    <h3 className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors">
+                      {vol.user?.name}
+                    </h3>
                     <p className="text-[11px] text-slate-400">{vol.user?.email}</p>
                   </div>
                 </div>
@@ -146,84 +215,200 @@ export default function VolunteersPage() {
                       ? "warning"
                       : "success"
                   }
-                  className="text-[9px]"
+                  className="text-[9px] uppercase font-mono"
                 >
-                  {vol.availability.toUpperCase()}
+                  {vol.availability}
                 </Badge>
               </div>
 
-              {/* Workload Progress Bar */}
-              <div className="mt-4 space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Workload Capacity:</span>
-                  <span
-                    className={`font-mono font-semibold ${
-                      loadScore > 80
-                        ? "text-rose-400"
-                        : loadScore > 50
-                        ? "text-amber-400"
-                        : "text-indigo-400"
-                    }`}
-                  >
-                    {loadScore}% ({vol.assignedTasks?.length || 0} tasks)
-                  </span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      loadScore > 80
-                        ? "bg-rose-500"
-                        : loadScore > 50
-                        ? "bg-amber-500"
-                        : "bg-indigo-500"
-                    }`}
-                    style={{ width: `${loadScore}%` }}
-                  />
-                </div>
-              </div>
+              {/* Workload Gauge */}
+              <WorkloadGauge
+                score={loadScore}
+                taskCount={vol.assignedTasks?.length || 0}
+              />
 
-              {/* Skill Tags */}
-              <div className="mt-3 flex flex-wrap gap-1">
-                {vol.skills.slice(0, 3).map((skill, i) => (
+              {/* Skills Tags */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {vol.skills.slice(0, 3).map((skill) => (
                   <span
-                    key={i}
-                    className="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800 font-mono"
+                    key={skill}
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-slate-300"
                   >
                     {skill}
                   </span>
                 ))}
                 {vol.skills.length > 3 && (
                   <span className="text-[10px] text-slate-500 self-center">
-                    +{vol.skills.length - 3}
+                    +{vol.skills.length - 3} more
                   </span>
                 )}
               </div>
-
-              {/* Notes */}
-              <p className="mt-3 text-[11px] text-slate-400 line-clamp-2 border-t border-slate-900 pt-2">
-                {vol.notes}
-              </p>
             </Card>
           );
         })}
       </div>
+
+      {/* AI Rebalance Modal */}
+      <Modal
+        isOpen={showRebalanceModal}
+        onClose={() => setShowRebalanceModal(false)}
+        title="AI Workload Rebalance Recommendation"
+        description="Automated optimization to alleviate volunteer burnout and protect critical path timelines."
+      >
+        <div className="space-y-4 text-xs">
+          {recommendations.map((rec, i) => (
+            <div
+              key={i}
+              className="p-4 rounded-xl border border-indigo-500/40 bg-slate-950 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <Badge variant="ai" className="text-[10px]">
+                  CONFIDENCE: {rec.confidence}%
+                </Badge>
+                <span className="text-slate-400 font-mono text-[10px]">
+                  Optimization #0{i + 1}
+                </span>
+              </div>
+
+              <p className="text-slate-300 leading-relaxed">{rec.reason}</p>
+
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-mono">Deliverable:</span>
+                  <p className="font-semibold text-white">{rec.taskToReassign.title}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-mono">Suggested Lead:</span>
+                  <p className="font-semibold text-emerald-400">{rec.suggestedVolunteer.user?.name}</p>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ai"
+                  onClick={() => executeRebalance(rec)}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Execute Rebalance</span>
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          {recommendations.length === 0 && (
+            <p className="text-slate-400 py-4 text-center">
+              All volunteer workloads are currently balanced within optimal parameters.
+            </p>
+          )}
+        </div>
+      </Modal>
+
+      {/* AI Task Suggestion Modal */}
+      <Modal
+        isOpen={showAiSuggestModal}
+        onClose={() => setShowAiSuggestModal(false)}
+        title="AI Personnel Assignment Assistant"
+        description="Matches volunteer skills and availability to specific task constraints."
+      >
+        <div className="space-y-4">
+          <form onSubmit={handleRunAiSuggestion} className="space-y-2">
+            <label className="text-xs font-medium text-slate-300">
+              Describe Operational Task Requirements:
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={taskQuery}
+                onChange={(e) => setTaskQuery(e.target.value)}
+                placeholder="e.g. Design keynote presentation and stage visual assets"
+                className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+              />
+              <Button type="submit" size="sm" variant="ai" className="h-9">
+                Match
+              </Button>
+            </div>
+          </form>
+
+          <div className="space-y-2.5 pt-2">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              AI Recommendation Ranked Candidates:
+            </span>
+            {aiSuggestions.map((sug, idx) => (
+              <div
+                key={sug.volunteer.id}
+                className="p-3 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-between gap-3 text-xs"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white">
+                      #{idx + 1} {sug.volunteer.user?.name}
+                    </span>
+                    <Badge variant={sug.score > 80 ? "success" : "warning"} className="text-[9px]">
+                      {sug.score}% MATCH
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                    {sug.rationale}
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px] flex-shrink-0"
+                  onClick={() => {
+                    showToast(`Candidate selected: ${sug.volunteer.user?.name}`);
+                    setShowAiSuggestModal(false);
+                  }}
+                >
+                  Select Lead
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
 
       {/* Volunteer Detail Modal */}
       <Modal
         isOpen={!!activeVolunteer}
         onClose={() => setActiveVolunteer(null)}
         title={activeVolunteer?.user?.name || "Volunteer Profile"}
-        description={`Role: ${activeVolunteer?.user?.role.toUpperCase()} • ${activeVolunteer?.availability.toUpperCase()}`}
+        description={`Volunteer ID: ${activeVolunteer?.id}`}
       >
         {activeVolunteer && (
           <div className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-slate-400 font-medium">Email:</span>
+                <p className="font-semibold text-white mt-0.5">{activeVolunteer.user?.email}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Availability:</span>
+                <p className="font-semibold text-emerald-400 mt-0.5 capitalize">
+                  {activeVolunteer.availability}
+                </p>
+              </div>
+            </div>
+
             <div>
-              <span className="text-slate-400 font-medium">Assigned Skills:</span>
+              <span className="text-slate-400 font-medium">Current Workload:</span>
+              <WorkloadGauge
+                score={activeVolunteer.workloadScore || 30}
+                taskCount={activeVolunteer.assignedTasks?.length || 0}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div>
+              <span className="text-slate-400 font-medium">Skills & Specializations:</span>
               <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {activeVolunteer.skills.map((s, idx) => (
+                {activeVolunteer.skills.map((s) => (
                   <span
-                    key={idx}
-                    className="px-2 py-1 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-500/30 text-[11px]"
+                    key={s}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-200"
                   >
                     {s}
                   </span>
@@ -231,107 +416,19 @@ export default function VolunteersPage() {
               </div>
             </div>
 
-            <div>
-              <span className="text-slate-400 font-medium">Assigned Tasks ({activeVolunteer.assignedTasks?.length || 0}):</span>
-              <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {activeVolunteer.assignedTasks && activeVolunteer.assignedTasks.length > 0 ? (
-                  activeVolunteer.assignedTasks.map((t) => (
-                    <div
-                      key={t.id}
-                      className="p-2.5 rounded border border-slate-800 bg-slate-950 flex items-center justify-between text-xs"
-                    >
-                      <span className="font-semibold text-slate-200 truncate">{t.title}</span>
-                      <Badge variant={t.priority === "critical" ? "destructive" : "warning"} className="text-[9px]">
-                        {t.status}
-                      </Badge>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-slate-500 text-[11px]">No active tasks assigned.</p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <span className="text-slate-400 font-medium">Operational Notes:</span>
-              <p className="mt-1 p-3 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                {activeVolunteer.notes}
-              </p>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <Button onClick={() => setActiveVolunteer(null)}>Close</Button>
+            <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => {
+                  showToast(`Assigned direct communication with ${activeVolunteer.user?.name}`);
+                  setActiveVolunteer(null);
+                }}
+              >
+                Close Profile
+              </Button>
             </div>
           </div>
         )}
-      </Modal>
-
-      {/* AI Task Assignment Recommendation Modal (Section 9 Requirement) */}
-      <Modal
-        isOpen={showAiSuggestModal}
-        onClose={() => setShowAiSuggestModal(false)}
-        title="AI-Assisted Personnel Assignment"
-        description="Recommend optimal volunteer based on skills, current workload, and availability."
-      >
-        <div className="space-y-4 text-xs">
-          <form onSubmit={handleRunAiSuggestion} className="space-y-2">
-            <label className="font-medium text-slate-300">Target Task Title / Requirements</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={taskQuery}
-                onChange={(e) => setTaskQuery(e.target.value)}
-                placeholder="e.g. Stage Rigging or Sound Equipment Setup"
-                className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
-              />
-              <Button type="submit" variant="ai">
-                Analyze
-              </Button>
-            </div>
-          </form>
-
-          <div className="pt-2 border-t border-slate-800 space-y-2.5">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Recommended Personnel (Evidence-Backed):
-            </span>
-            {aiSuggestions.map((sug, i) => (
-              <div
-                key={sug.volunteer.id}
-                className="p-3 rounded-lg border border-slate-800 bg-slate-950 space-y-1.5"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-xs">
-                      #{i + 1} {sug.volunteer.user?.name}
-                    </span>
-                    <Badge variant={sug.volunteer.availability === "available" ? "success" : "warning"} className="text-[9px]">
-                      {sug.volunteer.availability}
-                    </Badge>
-                  </div>
-                  <span className="text-[11px] font-mono text-cyan-400 font-bold">
-                    Fit Score: {sug.score}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-snug">
-                  {sug.rationale}
-                </p>
-                <div className="flex justify-end pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 text-[10px] text-indigo-300 border-indigo-500/40"
-                    onClick={() => {
-                      showToast(`AI Assignment recommended: ${sug.volunteer.user?.name}`);
-                      setShowAiSuggestModal(false);
-                    }}
-                  >
-                    Select Volunteer
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </Modal>
     </div>
   );

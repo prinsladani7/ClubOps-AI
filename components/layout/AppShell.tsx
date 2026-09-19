@@ -1,23 +1,22 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import React from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { Toast } from "@/components/ui/Toast";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { ShieldAlert, LogIn } from "lucide-react";
 import Link from "next/link";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { isAuthenticated, currentUser } = useClubOps();
+  const { isAuthenticated, toastMessage } = useClubOps();
 
   const isAuthPage = pathname === "/login";
 
-  // If user is not authenticated and trying to access protected routes, allow preview but surface prompt
   return (
-    <div className="min-h-screen bg-[#070A11] text-slate-100">
+    <div className="min-h-screen bg-[#070A11] text-slate-100 flex flex-col selection:bg-indigo-500/30 selection:text-indigo-200">
       {isAuthPage ? (
         <main className="min-h-screen flex flex-col">{children}</main>
       ) : (
@@ -46,6 +45,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
+
+      {/* Global floating toast notification */}
+      <Toast message={toastMessage} />
     </div>
   );
 }

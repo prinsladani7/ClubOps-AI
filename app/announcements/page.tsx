@@ -32,6 +32,7 @@ export default function AnnouncementsPage() {
     if (!title.trim() || !body.trim()) return;
 
     publishAnnouncement(title, body);
+    showToast(`Announcement broadcasted: "${title}"`);
     setTitle("");
     setBody("");
     setShowDraftModal(false);

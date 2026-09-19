@@ -78,6 +78,7 @@ export default function EventsPage() {
       description: eventDesc,
       status: eventStatus,
     });
+    showToast("Event configuration updated successfully!");
     setShowEditModal(false);
   };
 

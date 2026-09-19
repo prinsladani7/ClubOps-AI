@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,18 +19,33 @@ import {
   ArrowRight,
   Play,
   Check,
+  Plus,
+  Zap,
+  Radio,
+  FileSearch,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WorkloadGauge } from "@/components/ui/WorkloadGauge";
+import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { event, tasks, volunteers, risks, auditLogs, updateTaskItem, showToast } = useClubOps();
+  const {
+    event,
+    tasks,
+    volunteers,
+    risks,
+    auditLogs,
+    updateTaskItem,
+    triggerRiskAnalysis,
+    showToast,
+  } = useClubOps();
 
-  // Metrics calculated from real state
+  // Real-time calculations
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === "done").length;
   const inProgressTasks = tasks.filter((t) => t.status === "in_progress" || t.status === "review").length;
@@ -42,7 +57,7 @@ export default function DashboardPage() {
   const criticalRisks = risks.filter((r) => r.status === "active" && r.severity === "critical");
   const highRisks = risks.filter((r) => r.status === "active" && r.severity === "high");
 
-  // Dynamic Event Health Score (100 base, penalize overdue tasks and critical risks)
+  // Dynamic Event Health Score
   const healthScore = Math.max(
     10,
     Math.min(
@@ -62,7 +77,7 @@ export default function DashboardPage() {
     (v) => v.availability === "overloaded" || (v.workloadScore || 0) > 75
   );
 
-  // Upcoming Deadlines (sorted)
+  // Upcoming Deadlines
   const upcomingDeadlines = [...tasks]
     .filter((t) => t.status !== "done")
     .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime())
@@ -71,154 +86,232 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Top Banner: Selected Event Overview & Health */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-6 rounded-2xl border border-slate-800/80 bg-gradient-to-r from-slate-900/90 via-slate-900/60 to-indigo-950/20 backdrop-blur-xl">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-              Operations Command Center
-            </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-            <Badge variant="cyan" className="text-[10px]">
-              {event.status.toUpperCase()}
-            </Badge>
+      <div className="relative overflow-hidden p-6 lg:p-8 rounded-3xl border border-slate-800/80 bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-indigo-950/30 backdrop-blur-xl shadow-2xl">
+        {/* Ambient Glow Background Element */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                Operations Command Center
+              </span>
+              <span className="text-slate-600">•</span>
+              <Badge variant="cyan" className="text-[10px] font-mono">
+                {event.status.toUpperCase()}
+              </Badge>
+              <span className="text-slate-600">•</span>
+              <span className="text-xs text-indigo-300 font-mono">Code: LJ-TECHFEST-26</span>
+            </div>
+
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">
+              {event.name}
+            </h1>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              {event.description}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-1">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800">
+                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Oct 24–26, 2026</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span>📍 {event.venue}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800 font-mono">
+                <span>Budget: ₹{(event.budget * 82).toLocaleString()}</span>
+              </div>
+              <CountdownTimer targetDate="2026-10-24T09:00:00Z" />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white mt-1">
-            {event.name}
-          </h1>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            {event.description}
-          </p>
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 mt-3">
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>Oct 24–26, 2026 (35 days away)</span>
+
+          {/* Health Score Gauge with Diagnostics */}
+          <div className="flex-shrink-0 flex items-center gap-5 p-5 rounded-2xl border border-slate-800/90 bg-slate-950/90 shadow-xl backdrop-blur-md">
+            <div className="relative w-20 h-20 flex items-center justify-center">
+              <svg className="w-20 h-20 transform -rotate-90">
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="32"
+                  stroke="currentColor"
+                  strokeWidth="6"
+                  className="text-slate-800/80"
+                  fill="transparent"
+                />
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="32"
+                  stroke="currentColor"
+                  strokeWidth="6"
+                  strokeDasharray={201}
+                  strokeDashoffset={201 - (201 * healthScore) / 100}
+                  className={
+                    healthScore > 75
+                      ? "text-emerald-500 transition-all duration-1000"
+                      : healthScore > 50
+                      ? "text-amber-500 transition-all duration-1000"
+                      : "text-rose-500 transition-all duration-1000"
+                  }
+                  fill="transparent"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center">
+                <span className="text-lg font-extrabold text-white">{healthScore}%</span>
+                <span className="text-[9px] text-slate-400 uppercase font-mono">Index</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500">•</span>
-              <span>📍 {event.venue}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500">•</span>
-              <span>Budget: ${event.budget.toLocaleString()}</span>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white">Event Health</span>
+                <Badge
+                  variant={healthScore > 75 ? "success" : healthScore > 50 ? "warning" : "destructive"}
+                  className="text-[9px] py-0 px-1.5 uppercase font-mono"
+                >
+                  {healthScore > 75 ? "HEALTHY" : healthScore > 50 ? "AT RISK" : "CRITICAL"}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-snug">
+                {overdueTasks.length} overdue item(s) impacting critical path.
+              </p>
+              <div className="flex items-center gap-2 pt-1 text-[10px] text-slate-400">
+                <span className="text-emerald-400 font-semibold">{completedTasks}/{totalTasks} Done</span>
+                <span>•</span>
+                <span className="text-rose-400 font-semibold">{blockedTasks} Blocked</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Health Score Gauge */}
-        <div className="flex items-center gap-4 p-4 rounded-xl border border-slate-800 bg-slate-950/80">
-          <div className="relative w-16 h-16 flex items-center justify-center">
-            <svg className="w-16 h-16 transform -rotate-90">
-              <circle
-                cx="32"
-                cy="32"
-                r="26"
-                stroke="currentColor"
-                strokeWidth="5"
-                className="text-slate-800"
-                fill="transparent"
-              />
-              <circle
-                cx="32"
-                cy="32"
-                r="26"
-                stroke="currentColor"
-                strokeWidth="5"
-                strokeDasharray={163}
-                strokeDashoffset={163 - (163 * healthScore) / 100}
-                className={healthScore > 75 ? "text-emerald-500" : healthScore > 50 ? "text-amber-500" : "text-rose-500"}
-                fill="transparent"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span className="absolute text-sm font-bold text-white">{healthScore}%</span>
+        {/* Operational Quick Action Bar */}
+        <div className="relative z-10 mt-6 pt-5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <span className="font-semibold text-slate-300">Quick Operations:</span>
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-white">Event Health</span>
-              <Badge
-                variant={healthScore > 75 ? "success" : healthScore > 50 ? "warning" : "destructive"}
-                className="text-[9px] py-0 px-1"
-              >
-                {healthScore > 75 ? "HEALTHY" : healthScore > 50 ? "AT RISK" : "CRITICAL"}
-              </Badge>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {overdueTasks.length} overdue task(s) affecting critical path.
-            </p>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push("/tasks")}
+              className="h-7 text-xs gap-1.5 border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200"
+            >
+              <Plus className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Create Task</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                triggerRiskAnalysis();
+                showToast("Live AI Risk Scan initiated. Analyzing dependencies and bottlenecks...");
+                router.push("/risks");
+              }}
+              className="h-7 text-xs gap-1.5 border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Run AI Risk Scan</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push("/announcements")}
+              className="h-7 text-xs gap-1.5 border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200"
+            >
+              <Radio className="w-3.5 h-3.5 text-amber-400" />
+              <span>Broadcast Update</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="ai"
+              onClick={() => router.push("/ai-assistant")}
+              className="h-7 text-xs gap-1.5"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span>Launch Copilot</span>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-slate-800 bg-slate-900/50">
+        <Card className="border-slate-800/80 bg-slate-900/50 hover:border-slate-700 transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-slate-400">Total Tasks</CardTitle>
-            <CheckCircle2 className="w-4 h-4 text-slate-500" />
+            <CardTitle className="text-xs font-semibold text-slate-400">Total Tasks</CardTitle>
+            <CheckCircle2 className="w-4 h-4 text-indigo-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{totalTasks}</div>
-            <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
-              <span className="text-emerald-400 font-medium">{completedTasks} completed</span>
+            <div className="text-2xl font-extrabold text-white">{totalTasks}</div>
+            <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-400">
+              <span className="text-emerald-400 font-semibold">{completedTasks} completed</span>
               <span>•</span>
               <span>{inProgressTasks} in flight</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-rose-900/40 bg-rose-950/10">
+        <Card className="border-rose-900/40 bg-rose-950/15 hover:border-rose-500/40 transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-rose-300">Overdue Tasks</CardTitle>
+            <CardTitle className="text-xs font-semibold text-rose-300">Overdue Deliverables</CardTitle>
             <Clock className="w-4 h-4 text-rose-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-rose-400">{overdueTasks.length}</div>
-            <p className="text-[11px] text-rose-300/80 mt-1">
+            <div className="text-2xl font-extrabold text-rose-400">{overdueTasks.length}</div>
+            <p className="text-[11px] text-rose-300/80 mt-1.5 font-medium">
               Venue signoff & sponsor decks delayed
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-amber-900/40 bg-amber-950/10">
+        <Card className="border-amber-900/40 bg-amber-950/15 hover:border-amber-500/40 transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-amber-300">Active Risks</CardTitle>
+            <CardTitle className="text-xs font-semibold text-amber-300">Active Operational Risks</CardTitle>
             <AlertTriangle className="w-4 h-4 text-amber-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-400">{risks.filter((r) => r.status === "active").length}</div>
-            <p className="text-[11px] text-amber-300/80 mt-1">
+            <div className="text-2xl font-extrabold text-amber-400">{risks.filter((r) => r.status === "active").length}</div>
+            <p className="text-[11px] text-amber-300/80 mt-1.5 font-medium">
               {criticalRisks.length} critical path dependencies
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-800 bg-slate-900/50">
+        <Card className="border-slate-800/80 bg-slate-900/50 hover:border-slate-700 transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-slate-400">Volunteer Roster</CardTitle>
+            <CardTitle className="text-xs font-semibold text-slate-400">Volunteer Roster</CardTitle>
             <Users className="w-4 h-4 text-cyan-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{volunteers.length}</div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              <span className="text-amber-400 font-medium">{overloadedVolunteers.length} overloaded</span> • 24 total
+            <div className="text-2xl font-extrabold text-white">{volunteers.length}</div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              <span className="text-amber-400 font-semibold">{overloadedVolunteers.length} overloaded</span> • 24 total leads
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Prominent "AI Attention Required" Section (Core Section 5 Requirement) */}
-      <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-b from-indigo-950/40 via-slate-900/60 to-slate-950/80 p-6 shadow-aiGlow">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-indigo-500/20 gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
+      {/* Prominent "AI Attention Required" Section */}
+      <div className="rounded-3xl border border-indigo-500/40 bg-gradient-to-b from-indigo-950/40 via-slate-900/80 to-slate-950/90 p-6 sm:p-7 shadow-aiGlow">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-indigo-500/20 gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center shadow-aiGlow">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-white tracking-wide">
+              <h2 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
                 AI Attention Required
+                <Badge variant="ai" className="text-[9px] py-0 px-1.5">
+                  REAL-TIME BOTTLENECK RADAR
+                </Badge>
               </h2>
               <p className="text-xs text-slate-400">
-                Operational bottlenecks surfaced from dependency chains and real-time activity.
+                Surfaced by dependency propagation, volunteer workload spikes, and unfulfilled meeting action items.
               </p>
             </div>
           </div>
@@ -226,7 +319,7 @@ export default function DashboardPage() {
             size="sm"
             variant="ai"
             onClick={() => router.push("/ai-assistant")}
-            className="text-xs h-8 gap-1.5"
+            className="text-xs h-8 gap-1.5 flex-shrink-0"
           >
             <Bot className="w-3.5 h-3.5" />
             <span>Open AI Command Center</span>
@@ -234,65 +327,71 @@ export default function DashboardPage() {
         </div>
 
         {/* Attention Items Grid */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Card 1: Critical Dependency Risk */}
-          <div className="rounded-xl border border-rose-500/30 bg-slate-900/80 p-4 flex flex-col justify-between">
+          <div className="rounded-2xl border border-rose-500/40 bg-slate-900/90 p-5 flex flex-col justify-between shadow-sm hover:border-rose-500/70 transition-colors">
             <div>
               <div className="flex items-center justify-between">
-                <Badge variant="destructive" className="text-[10px]">
+                <Badge variant="destructive" className="text-[10px] font-mono">
                   DEPENDENCY BLOCKED
                 </Badge>
-                <span className="text-[10px] text-rose-400 font-mono">2 days overdue</span>
+                <span className="text-[10px] text-rose-400 font-mono font-semibold">2 days overdue</span>
               </div>
-              <h3 className="text-xs font-semibold text-white mt-2">
+              <h3 className="text-xs font-bold text-white mt-2.5">
                 Grand Auditorium Booking Unsigned
               </h3>
-              <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+              <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
                 Task #task-01 is marked BLOCKED. This delays <strong>Stage Rigging</strong>, <strong>Sound Check</strong>, and the <strong>Dress Rehearsal</strong>.
               </p>
-              <div className="mt-3 p-2 rounded bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono">
+              <div className="mt-3 p-2.5 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[10px] text-slate-400 font-mono">
                 Evidence: Task #task-01 due 2026-09-17 • 3 downstream tasks waiting.
               </div>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-              <span className="text-[10px] text-indigo-300">Target: Rahul Sharma</span>
+            <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex items-center justify-between">
+              <span className="text-[10px] text-indigo-300 font-mono">Target: Rahul Sharma</span>
               <Button
                 size="sm"
                 variant="outline"
                 className="h-7 text-[11px] border-indigo-500/40 text-indigo-300 hover:bg-indigo-950/50"
-                onClick={() => router.push("/ai-assistant")}
+                onClick={() => {
+                  showToast("Opening AI Copilot to draft urgent venue escalation to Registrar");
+                  router.push("/ai-assistant");
+                }}
               >
-                Ask Copilot to Intervene
+                Copilot Intervene
               </Button>
             </div>
           </div>
 
           {/* Card 2: Overloaded Volunteer */}
-          <div className="rounded-xl border border-amber-500/30 bg-slate-900/80 p-4 flex flex-col justify-between">
+          <div className="rounded-2xl border border-amber-500/40 bg-slate-900/90 p-5 flex flex-col justify-between shadow-sm hover:border-amber-500/70 transition-colors">
             <div>
               <div className="flex items-center justify-between">
-                <Badge variant="warning" className="text-[10px]">
+                <Badge variant="warning" className="text-[10px] font-mono">
                   BURNOUT THREAT
                 </Badge>
-                <span className="text-[10px] text-amber-400 font-mono">92% capacity</span>
+                <span className="text-[10px] text-amber-400 font-mono font-semibold">92% capacity</span>
               </div>
-              <h3 className="text-xs font-semibold text-white mt-2">
+              <h3 className="text-xs font-bold text-white mt-2.5">
                 Rahul Sharma Assigned 7 Critical Tasks
               </h3>
-              <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+              <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
                 Handling venue signoffs, stage rigging, power extension procurement, and AC checks simultaneously.
               </p>
-              <div className="mt-3 p-2 rounded bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono">
+              <div className="mt-3 p-2.5 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[10px] text-slate-400 font-mono">
                 Recommendation: Reassign heavy electrical tasks to Arjun Pillai (Available).
               </div>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-              <span className="text-[10px] text-slate-400">7 Active Tasks</span>
+            <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400 font-mono">7 Active Tasks</span>
               <Button
                 size="sm"
                 variant="outline"
                 className="h-7 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-950/50"
-                onClick={() => router.push("/volunteers")}
+                onClick={() => {
+                  showToast("Navigating to Volunteer Workload rebalancing engine");
+                  router.push("/volunteers");
+                }}
               >
                 Rebalance Workload
               </Button>
@@ -300,31 +399,34 @@ export default function DashboardPage() {
           </div>
 
           {/* Card 3: Meeting Action Pending */}
-          <div className="rounded-xl border border-indigo-500/30 bg-slate-900/80 p-4 flex flex-col justify-between">
+          <div className="rounded-2xl border border-indigo-500/40 bg-slate-900/90 p-5 flex flex-col justify-between shadow-sm hover:border-indigo-500/70 transition-colors">
             <div>
               <div className="flex items-center justify-between">
-                <Badge variant="ai" className="text-[10px]">
+                <Badge variant="ai" className="text-[10px] font-mono">
                   MEETING ACTION EXTRACTED
                 </Badge>
-                <span className="text-[10px] text-indigo-400 font-mono">Yesterday Sync</span>
+                <span className="text-[10px] text-indigo-400 font-mono font-semibold">Sync Transcript</span>
               </div>
-              <h3 className="text-xs font-semibold text-white mt-2">
+              <h3 className="text-xs font-bold text-white mt-2.5">
                 Launch Registration Portal & Instagram Reel
               </h3>
-              <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+              <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
                 Jay and Priya committed to launch the registration site and teaser video by Friday night for 500 hacker signups.
               </p>
-              <div className="mt-3 p-2 rounded bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 font-mono">
+              <div className="mt-3 p-2.5 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[10px] text-slate-400 font-mono">
                 Confidence: 96% • 3 Action Items ready for one-click approval.
               </div>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-              <span className="text-[10px] text-slate-400">Review & Approve</span>
+            <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400 font-mono">Review & Commit</span>
               <Button
                 size="sm"
                 variant="outline"
                 className="h-7 text-[11px] border-indigo-500/40 text-indigo-300 hover:bg-indigo-950/50"
-                onClick={() => router.push("/meetings")}
+                onClick={() => {
+                  showToast("Reviewing meeting extraction deliverables");
+                  router.push("/meetings");
+                }}
               >
                 Open Meeting
               </Button>
@@ -333,55 +435,55 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Two Column Layout: Upcoming Deadlines + Live Activity Feed */}
+      {/* Two Column Layout: Critical Deadlines + Volunteer Workload & Activity Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Upcoming Deadlines & Priority Tasks */}
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <Card className="border-slate-800/80 bg-slate-900/50">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-800/60">
               <div>
                 <CardTitle className="text-sm">Critical Deadlines & In-Flight Work</CardTitle>
-                <CardDescription>Tasks requiring immediate attention or review.</CardDescription>
+                <CardDescription>Deliverables requiring immediate attention, review, or signoff.</CardDescription>
               </div>
-              <Link href="/tasks" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
+              <Link href="/tasks" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold">
                 <span>View all ({tasks.length})</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </CardHeader>
-            <CardContent className="space-y-2.5">
+            <CardContent className="space-y-2.5 pt-4">
               {upcomingDeadlines.map((task) => {
                 const isOverdue = new Date(task.due_at).getTime() < now;
                 return (
                   <div
                     key={task.id}
-                    className="p-3 rounded-lg border border-slate-800/80 bg-slate-950/50 hover:bg-slate-900/80 transition-colors flex items-center justify-between gap-3"
+                    className="p-3.5 rounded-xl border border-slate-800/80 bg-slate-950/60 hover:bg-slate-900/90 transition-colors flex items-center justify-between gap-3 group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3.5 min-w-0">
                       <button
                         onClick={() => {
                           updateTaskItem(task.id, { status: "done" });
                           showToast(`Task marked DONE: "${task.title}"`);
                         }}
-                        className="w-5 h-5 rounded border border-slate-700 hover:border-emerald-500 flex items-center justify-center text-transparent hover:text-emerald-400 transition-colors"
+                        className="w-5 h-5 rounded-md border border-slate-700 hover:border-emerald-500 hover:bg-emerald-500/10 flex items-center justify-center text-transparent hover:text-emerald-400 transition-colors flex-shrink-0"
                         title="Mark done"
                       >
                         <Check className="w-3.5 h-3.5" />
                       </button>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-200 truncate">
+                        <p className="text-xs font-semibold text-slate-200 truncate group-hover:text-white transition-colors">
                           {task.title}
                         </p>
                         <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                          <span>Assignee: {task.owner?.name || "Unassigned"}</span>
+                          <span>Assignee: <strong className="text-slate-300">{task.owner?.name || "Unassigned"}</strong></span>
                           <span>•</span>
-                          <span className={isOverdue ? "text-rose-400 font-medium" : "text-slate-400"}>
+                          <span className={isOverdue ? "text-rose-400 font-semibold font-mono" : "text-slate-400 font-mono"}>
                             {formatRelativeTime(task.due_at)}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <Badge
                         variant={
                           task.priority === "critical"
@@ -390,7 +492,7 @@ export default function DashboardPage() {
                             ? "warning"
                             : "secondary"
                         }
-                        className="text-[10px]"
+                        className="text-[10px] font-mono uppercase"
                       >
                         {task.priority}
                       </Badge>
@@ -404,7 +506,7 @@ export default function DashboardPage() {
                             ? "success"
                             : "secondary"
                         }
-                        className="text-[10px]"
+                        className="text-[10px] font-mono uppercase"
                       >
                         {task.status.replace("_", " ")}
                       </Badge>
@@ -416,59 +518,45 @@ export default function DashboardPage() {
           </Card>
 
           {/* Volunteer Workload Heatmeter Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <Card className="border-slate-800/80 bg-slate-900/50">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-800/60">
               <div>
                 <CardTitle className="text-sm">Volunteer Workload Distribution</CardTitle>
-                <CardDescription>Live task allocation across active committee leads.</CardDescription>
+                <CardDescription>Live task allocation and capacity gauges across active committee leads.</CardDescription>
               </div>
-              <Link href="/volunteers" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
+              <Link href="/volunteers" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold">
                 <span>Manage Team ({volunteers.length})</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {volunteers.slice(0, 5).map((vol) => {
-                const score = vol.workloadScore || 30;
-                return (
-                  <div key={vol.id} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-200">{vol.user?.name}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        {score}% load ({vol.assignedTasks?.length || 0} tasks)
-                      </span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          score > 80
-                            ? "bg-rose-500"
-                            : score > 50
-                            ? "bg-amber-500"
-                            : "bg-indigo-500"
-                        }`}
-                        style={{ width: `${score}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            <CardContent className="space-y-4 pt-4">
+              {volunteers.slice(0, 5).map((vol) => (
+                <WorkloadGauge
+                  key={vol.id}
+                  label={vol.user?.name}
+                  score={vol.workloadScore || 30}
+                  taskCount={vol.assignedTasks?.length || 0}
+                />
+              ))}
             </CardContent>
           </Card>
         </div>
 
         {/* Right Col: Live Operational Activity Feed */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Operational Activity Feed</CardTitle>
-              <CardDescription>Verifiable audit trail of user and AI actions.</CardDescription>
+          <Card className="border-slate-800/80 bg-slate-900/50">
+            <CardHeader className="pb-3 border-b border-slate-800/60">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Operational Activity Feed</CardTitle>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <CardDescription>Verifiable audit trail of user and AI operations.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 pt-4">
               {auditLogs.slice(0, 6).map((log) => (
                 <div
                   key={log.id}
-                  className="p-2.5 rounded-lg border border-slate-800/80 bg-slate-950/40 space-y-1 text-xs"
+                  className="p-3 rounded-xl border border-slate-800/80 bg-slate-950/60 space-y-1 text-xs hover:border-slate-700 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
@@ -477,7 +565,7 @@ export default function DashboardPage() {
                       </span>
                       <Badge
                         variant={log.actor_type === "ai" ? "ai" : "secondary"}
-                        className="text-[9px] py-0 px-1"
+                        className="text-[9px] py-0 px-1 font-mono"
                       >
                         {log.actor_type.toUpperCase()}
                       </Badge>
@@ -490,7 +578,7 @@ export default function DashboardPage() {
                     {log.action}
                   </p>
                   {log.metadata_json && (
-                    <p className="text-[11px] text-slate-400 truncate">
+                    <p className="text-[11px] text-slate-400 truncate font-sans">
                       {log.metadata_json.title ||
                         log.metadata_json.event_name ||
                         JSON.stringify(log.metadata_json)}
@@ -503,9 +591,9 @@ export default function DashboardPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => router.push("/audit")}
-                  className="w-full text-xs h-8 text-slate-300"
+                  className="w-full text-xs h-8 text-slate-300 border-slate-700 hover:bg-slate-800"
                 >
-                  View Full Audit Log
+                  View Full Audit Ledger
                 </Button>
               </div>
             </CardContent>
