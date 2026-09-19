@@ -18,13 +18,14 @@ import {
   Calendar,
   Sparkles,
   ShieldAlert,
+  LogIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { tasks, risks, meetings, event } = useClubOps();
+  const { tasks, risks, meetings, event, currentUser } = useClubOps();
 
   const overdueCount = tasks.filter(
     (t) => new Date(t.due_at).getTime() < Date.now() && t.status !== "done"
@@ -153,6 +154,33 @@ export function Sidebar() {
           <p className="text-xs font-semibold text-slate-100 truncate mt-1">{event.name}</p>
           <p className="text-[11px] text-slate-400 truncate mt-0.5">{event.venue}</p>
         </div>
+      </div>
+
+      {/* User Profile / Auth State in Footer */}
+      <div className="p-3 border-t border-slate-800/80 bg-slate-900/60 flex items-center justify-between">
+        <Link href="/login" className="flex items-center gap-2.5 min-w-0 group" title="Open Auth Portal">
+          <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-[11px] text-indigo-300 flex-shrink-0 group-hover:border-indigo-500 transition-colors">
+            {currentUser.name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white truncate group-hover:text-indigo-300 transition-colors">
+              {currentUser.name}
+            </p>
+            <p className="text-[10px] text-slate-400 capitalize">
+              {currentUser.role}
+            </p>
+          </div>
+        </Link>
+        <Link
+          href="/login"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          title="Switch Account / Sign In"
+        >
+          <LogIn className="w-3.5 h-3.5 text-slate-400 hover:text-indigo-400" />
+        </Link>
       </div>
     </aside>
   );

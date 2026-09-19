@@ -72,6 +72,36 @@ class DatabaseStore {
     return this.users.find((u) => u.id === id);
   }
 
+  getUserByEmail(email: string): User | undefined {
+    return this.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  }
+
+  registerUser(name: string, email: string, role: UserRole): User {
+    const existing = this.getUserByEmail(email);
+    if (existing) return existing;
+
+    const newUser: User = {
+      id: `usr-${Date.now().toString(36)}`,
+      name,
+      email,
+      role,
+      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+      created_at: new Date().toISOString(),
+    };
+    this.users.push(newUser);
+
+    this.addAuditLog({
+      actor_user_id: newUser.id,
+      actor_type: "user",
+      action: "USER_REGISTER",
+      entity_type: "user",
+      entity_id: newUser.id,
+      metadata_json: { name, email, role },
+    });
+
+    return newUser;
+  }
+
   // Club & Event
   getClub() {
     return { ...this.club };

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Search,
   Bot,
@@ -12,6 +13,8 @@ import {
   CheckCircle,
   Clock,
   Plus,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +23,18 @@ import { Modal } from "@/components/ui/modal";
 
 export function TopBar() {
   const router = useRouter();
-  const { currentUser, switchUser, users, event, notifications, markRead, createNewTask, runAICommand } = useClubOps();
+  const {
+    currentUser,
+    switchUser,
+    users,
+    event,
+    notifications,
+    markRead,
+    createNewTask,
+    runAICommand,
+    isAuthenticated,
+    logout,
+  } = useClubOps();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showQuickTask, setShowQuickTask] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
@@ -161,6 +175,29 @@ export function TopBar() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Auth Portal & Sign In / Out */}
+        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+          <Link
+            href="/login"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/70 text-slate-300 hover:text-white hover:border-indigo-500/50 text-xs transition-colors"
+            title="Switch Account or Login"
+          >
+            <LogIn className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline font-medium">Auth Portal</span>
+          </Link>
+
+          <button
+            onClick={() => {
+              logout();
+              router.push("/login");
+            }}
+            className="p-1.5 rounded-lg border border-slate-800/80 bg-slate-900/40 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-950/20 transition-colors"
+            title="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 

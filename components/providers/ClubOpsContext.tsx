@@ -22,6 +22,11 @@ import { aiProvider } from "@/lib/ai/provider";
 interface ClubOpsContextType {
   currentUser: User;
   switchUser: (userId: string) => void;
+  isAuthenticated: boolean;
+  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  loginAsPersona: (userId: string) => void;
+  register: (name: string, email: string, role: UserRole, password?: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
   users: User[];
   event: Event;
   updateEventDetails: (patch: Partial<Event>) => void;
@@ -60,6 +65,13 @@ const ClubOpsContext = createContext<ClubOpsContextType | undefined>(undefined);
 
 export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User>(() => db.getCurrentUser());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("clubops_auth");
+      return stored !== null ? stored === "true" : true;
+    }
+    return true;
+  });
   const [users, setUsers] = useState<User[]>(() => db.getUsers());
   const [event, setEvent] = useState<Event>(() => db.getEvent());
   const [tasks, setTasks] = useState<Task[]>(() => db.getTasks());
@@ -98,6 +110,60 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     refreshAll();
     showToast(`Switched active persona to ${user.name} (${user.role.toUpperCase()})`);
   }, [refreshAll, showToast]);
+
+  const loginAsPersona = useCallback((userId: string) => {
+    const user = db.setCurrentUser(userId);
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubops_auth", "true");
+      localStorage.setItem("clubops_user_id", userId);
+    }
+    refreshAll();
+    showToast(`Welcome back, ${user.name}! Authenticated as ${user.role.toUpperCase()}.`);
+  }, [refreshAll, showToast]);
+
+  const login = useCallback(async (email: string, password?: string) => {
+    const user = db.getUserByEmail(email);
+    if (!user) {
+      return { success: false, error: "No account found matching this email address. Please try demo personas or register." };
+    }
+    db.setCurrentUser(user.id);
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubops_auth", "true");
+      localStorage.setItem("clubops_user_id", user.id);
+    }
+    refreshAll();
+    showToast(`Signed in successfully as ${user.name}.`);
+    return { success: true };
+  }, [refreshAll, showToast]);
+
+  const register = useCallback(async (name: string, email: string, role: UserRole, password?: string) => {
+    if (!name || !email) {
+      return { success: false, error: "Name and email are required." };
+    }
+    const user = db.registerUser(name, email, role);
+    db.setCurrentUser(user.id);
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubops_auth", "true");
+      localStorage.setItem("clubops_user_id", user.id);
+    }
+    refreshAll();
+    showToast(`Account created! Signed in as ${user.name}.`);
+    return { success: true };
+  }, [refreshAll, showToast]);
+
+  const logout = useCallback(() => {
+    setIsAuthenticated(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("clubops_auth", "false");
+    }
+    showToast("You have been signed out.");
+  }, [showToast]);
 
   const updateEventDetails = useCallback((patch: Partial<Event>) => {
     const updated = db.updateEvent(patch);
@@ -190,6 +256,11 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentUser,
         switchUser,
+        isAuthenticated,
+        login,
+        loginAsPersona,
+        register,
+        logout,
         users,
         event,
         updateEventDetails,
