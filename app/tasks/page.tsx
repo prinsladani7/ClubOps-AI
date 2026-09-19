@@ -38,11 +38,15 @@ export default function TasksPage() {
   const {
     tasks,
     users,
+    volunteers,
     event,
     currentUser,
     createNewTask,
     updateTaskItem,
     deleteTaskItem,
+    delegateTask,
+    escalateTask,
+    resolveTaskBlocker,
     showToast,
   } = useClubOps();
 
@@ -53,6 +57,13 @@ export default function TasksPage() {
   const [selectedAssignee, setSelectedAssignee] = useState<string>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTaskDetail, setActiveTaskDetail] = useState<Task | null>(null);
+
+  // Escalation & Delegation modal state
+  const [isEscalateModalOpen, setIsEscalateModalOpen] = useState(false);
+  const [blockerText, setBlockerText] = useState("");
+  const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
+  const [delegateTargetUserId, setDelegateTargetUserId] = useState("");
+  const [delegateReason, setDelegateReason] = useState("");
 
   // Form State for new task
   const [title, setTitle] = useState("");
@@ -660,6 +671,92 @@ export default function TasksPage() {
                 {formatDate(activeTaskDetail.due_at)} ({formatRelativeTime(activeTaskDetail.due_at)})
               </p>
             </div>
+
+            {/* Blocker & Emergency Escalation Status (Section 11) */}
+            {activeTaskDetail.status === "blocked" || activeTaskDetail.escalation_level ? (
+              <div className="p-3.5 rounded-xl border border-rose-500/40 bg-rose-950/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-rose-400 font-bold font-mono">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                    <span>EMERGENCY ESCALATION [{activeTaskDetail.escalation_level?.toUpperCase() || "ORGANIZER"} TIER]</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-rose-300">
+                    Status: {activeTaskDetail.resolution_status || "investigating"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  {activeTaskDetail.blocked_at && `Blocked since ${formatDate(activeTaskDetail.blocked_at)}. `}
+                  Escalated to: <span className="font-semibold text-white">{users.find((u) => u.id === activeTaskDetail.escalated_to)?.name || activeTaskDetail.escalated_to || "Command Lead"}</span>
+                </p>
+                <div className="pt-1 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/40 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60 h-7 text-xs"
+                    onClick={() => {
+                      const updated = resolveTaskBlocker(activeTaskDetail.id);
+                      if (updated) setActiveTaskDetail(updated);
+                    }}
+                  >
+                    ✓ Resolve Blocker & Restore Task
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/50">
+                <span className="text-slate-400">Encountering critical delay or blocker?</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-rose-500/40 bg-rose-950/20 text-rose-300 hover:bg-rose-950/50 h-7 text-xs flex items-center gap-1"
+                  onClick={() => setIsEscalateModalOpen(true)}
+                >
+                  <AlertTriangle className="w-3 h-3 text-rose-400" />
+                  <span>Report Blocker & Escalate</span>
+                </Button>
+              </div>
+            )}
+
+            {/* Delegation Chain & History (Section 7) */}
+            {activeTaskDetail.delegation_chain && activeTaskDetail.delegation_chain.length > 0 && (
+              <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-indigo-400 font-bold uppercase">
+                    Delegation Chain ({activeTaskDetail.delegation_chain.length} Steps)
+                  </span>
+                  <span className="text-[9px] font-mono text-slate-400">Audit Grounded</span>
+                </div>
+                <div className="space-y-1.5">
+                  {activeTaskDetail.delegation_chain.map((step, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-[11px] text-slate-300">
+                      <span className="font-mono text-indigo-400 font-bold">#{step.step || idx + 1}:</span>
+                      <span>
+                        Delegated from <strong>{users.find((u) => u.id === step.from_user_id)?.name || step.from_user_id}</strong> to{" "}
+                        <strong>{users.find((u) => u.id === step.to_user_id)?.name || step.to_user_id}</strong>
+                        {step.reason && ` ("${step.reason}")`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Delegation Action Trigger */}
+            <div className="flex items-center justify-between p-2.5 rounded-xl border border-slate-800 bg-slate-950/50">
+              <span className="text-slate-400">Reassign operational ownership</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-indigo-500/40 bg-indigo-950/30 text-indigo-300 hover:bg-indigo-900/50 h-7 text-xs flex items-center gap-1"
+                onClick={() => {
+                  setDelegateTargetUserId(users.find((u) => u.id !== activeTaskDetail.owner_id)?.id || "");
+                  setIsDelegateModalOpen(true);
+                }}
+              >
+                <span>Delegate Task</span>
+              </Button>
+            </div>
+
             {activeTaskDetail.dependencies && activeTaskDetail.dependencies.length > 0 && (
               <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-950/20 text-amber-300">
                 ⚠️ This task is waiting on {activeTaskDetail.dependencies.length} prerequisite deliverable(s).
@@ -694,6 +791,144 @@ export default function TasksPage() {
           </div>
         )}
       </Modal>
+
+      {/* Escalate Blocker Modal */}
+      {isEscalateModalOpen && activeTaskDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-2xl border border-rose-500/40 bg-slate-900/95 p-6 shadow-2xl backdrop-blur-xl">
+            <h3 className="text-base font-bold text-white mb-1 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-rose-400" />
+              <span>Report Blocker & Escalate</span>
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Escalate "{activeTaskDetail.title}" along the chain: Volunteer → Organizer → Admin.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!blockerText.trim()) return;
+                const updated = escalateTask(activeTaskDetail.id, blockerText.trim());
+                if (updated) setActiveTaskDetail(updated);
+                setBlockerText("");
+                setIsEscalateModalOpen(false);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Describe Critical Blocker / Cause
+                </label>
+                <textarea
+                  value={blockerText}
+                  onChange={(e) => setBlockerText(e.target.value)}
+                  rows={3}
+                  placeholder="Explain why this deliverable cannot proceed (e.g. vendor no-show, missing access credentials, electrical failure)..."
+                  required
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-rose-500 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEscalateModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!blockerText.trim()}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition-colors"
+                >
+                  Confirm Emergency Escalation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delegate Task Modal */}
+      {isDelegateModalOpen && activeTaskDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-2xl border border-indigo-500/40 bg-slate-900/95 p-6 shadow-2xl backdrop-blur-xl">
+            <h3 className="text-base font-bold text-white mb-1 flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-indigo-400" />
+              <span>Delegate Task Deliverable</span>
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Transfer assignment ownership of "{activeTaskDetail.title}" and record delegation step.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!delegateTargetUserId) return;
+                try {
+                  const updated = delegateTask(activeTaskDetail.id, delegateTargetUserId, delegateReason.trim());
+                  if (updated) setActiveTaskDetail(updated);
+                  setDelegateReason("");
+                  setIsDelegateModalOpen(false);
+                } catch (err: any) {
+                  showToast(`Error: ${err.message}`);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Target Assignee
+                </label>
+                <select
+                  value={delegateTargetUserId}
+                  onChange={(e) => setDelegateTargetUserId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                >
+                  {users
+                    .filter((u) => u.id !== activeTaskDetail.owner_id)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role.toUpperCase()})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Reason / Handover Notes
+                </label>
+                <textarea
+                  value={delegateReason}
+                  onChange={(e) => setDelegateReason(e.target.value)}
+                  rows={2}
+                  placeholder="Reason for delegation e.g. capacity rebalancing, specialized skill requirement..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsDelegateModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                >
+                  Confirm Delegation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Create Task Modal */}
       <Modal

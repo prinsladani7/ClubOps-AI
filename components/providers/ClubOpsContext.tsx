@@ -15,6 +15,13 @@ import {
   AuditLog,
   AIToolCall,
   UserRole,
+  Team,
+  TeamMember,
+  RoleAssignment,
+  PermissionRequest,
+  PermissionAction,
+  PermissionScope,
+  AITeamRecommendation,
 } from "@/types";
 import { db } from "@/lib/db";
 import { aiProvider } from "@/lib/ai/provider";
@@ -59,6 +66,28 @@ interface ClubOpsContextType {
   approveTool: (toolCallId: string, approved: boolean) => { success: boolean; result?: any };
   toastMessage: string | null;
   showToast: (msg: string) => void;
+
+  // RBAC & Teams
+  teams: Team[];
+  roleAssignments: RoleAssignment[];
+  permissionRequests: PermissionRequest[];
+  createTeam: (data: { name: string; description: string; organizer_id: string; event_id?: string }) => Team;
+  updateTeam: (id: string, patch: Partial<Team>) => void;
+  archiveTeam: (id: string) => void;
+  suspendTeam: (id: string) => void;
+  addTeamMember: (teamId: string, userId: string, role?: "organizer" | "volunteer" | "acting_organizer") => void;
+  removeTeamMember: (teamMemberId: string) => void;
+  transferTeamMember: (teamMemberId: string, targetTeamId: string) => void;
+  assignTemporaryRole: (data: { user_id: string; role: string; scope_type: PermissionScope; scope_id: string; expires_at: string; starts_at?: string }) => RoleAssignment;
+  assignActingOrganizer: (teamId: string, volunteerUserId: string, durationHours?: number) => RoleAssignment;
+  revokeRoleAssignment: (id: string) => void;
+  createPermissionRequest: (data: { permission: PermissionAction; scope_type: PermissionScope; scope_id: string; resource_type: string; resource_id?: string; reason: string; duration_hours?: number }) => PermissionRequest;
+  reviewPermissionRequest: (requestId: string, action: "approve" | "reject" | "temporarily_approve", tempDurationHours?: number, reviewNotes?: string) => void;
+  delegateTask: (taskId: string, targetUserId: string, reason?: string) => Task | undefined;
+  escalateTask: (taskId: string, blockerDescription: string) => Task | undefined;
+  resolveTaskBlocker: (taskId: string, notes?: string) => Task | undefined;
+  recommendTeam: (spec: { goal: string; required_skills?: string[]; max_members?: number }) => AITeamRecommendation;
+  createTeamFromRecommendation: (rec: AITeamRecommendation) => Team;
 }
 
 const ClubOpsContext = createContext<ClubOpsContextType | undefined>(undefined);
@@ -83,6 +112,9 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => db.getAnnouncements());
   const [notifications, setNotifications] = useState<Notification[]>(() => db.getNotifications());
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => db.getAuditLogs());
+  const [teams, setTeams] = useState<Team[]>(() => db.getTeams());
+  const [roleAssignments, setRoleAssignments] = useState<RoleAssignment[]>(() => db.getRoleAssignments());
+  const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>(() => db.getPermissionRequests());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -102,6 +134,9 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     setAnnouncements(db.getAnnouncements());
     setNotifications(db.getNotifications());
     setAuditLogs(db.getAuditLogs());
+    setTeams(db.getTeams());
+    setRoleAssignments(db.getRoleAssignments());
+    setPermissionRequests(db.getPermissionRequests());
   }, []);
 
   const switchUser = useCallback((userId: string) => {
@@ -251,6 +286,114 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     return res;
   }, [refreshAll, showToast]);
 
+  const createTeam = useCallback((data: { name: string; description: string; organizer_id: string; event_id?: string }) => {
+    const team = db.createTeam(data);
+    refreshAll();
+    showToast(`Team "${team.name}" created successfully.`);
+    return team;
+  }, [refreshAll, showToast]);
+
+  const updateTeam = useCallback((id: string, patch: Partial<Team>) => {
+    db.updateTeam(id, patch);
+    refreshAll();
+    showToast("Team updated.");
+  }, [refreshAll, showToast]);
+
+  const archiveTeam = useCallback((id: string) => {
+    db.archiveTeam(id);
+    refreshAll();
+    showToast("Team archived.");
+  }, [refreshAll, showToast]);
+
+  const suspendTeam = useCallback((id: string) => {
+    db.suspendTeam(id);
+    refreshAll();
+    showToast("Team suspended.");
+  }, [refreshAll, showToast]);
+
+  const addTeamMember = useCallback((teamId: string, userId: string, role?: "organizer" | "volunteer" | "acting_organizer") => {
+    db.addTeamMember(teamId, userId, role);
+    refreshAll();
+    showToast("Team member added.");
+  }, [refreshAll, showToast]);
+
+  const removeTeamMember = useCallback((teamMemberId: string) => {
+    db.removeTeamMember(teamMemberId);
+    refreshAll();
+    showToast("Member removed from team.");
+  }, [refreshAll, showToast]);
+
+  const transferTeamMember = useCallback((teamMemberId: string, targetTeamId: string) => {
+    db.transferTeamMember(teamMemberId, targetTeamId);
+    refreshAll();
+    showToast("Member transferred to team.");
+  }, [refreshAll, showToast]);
+
+  const assignTemporaryRole = useCallback((data: { user_id: string; role: string; scope_type: PermissionScope; scope_id: string; expires_at: string; starts_at?: string }) => {
+    const ra = db.assignTemporaryRole(data);
+    refreshAll();
+    showToast(`Granted temporary role ${data.role}.`);
+    return ra;
+  }, [refreshAll, showToast]);
+
+  const assignActingOrganizer = useCallback((teamId: string, volunteerUserId: string, durationHours?: number) => {
+    const ra = db.assignActingOrganizer(teamId, volunteerUserId, durationHours);
+    refreshAll();
+    showToast(`Acting Organizer assigned for ${durationHours || 48} hours.`);
+    return ra;
+  }, [refreshAll, showToast]);
+
+  const revokeRoleAssignment = useCallback((id: string) => {
+    db.revokeRoleAssignment(id);
+    refreshAll();
+    showToast("Role assignment revoked.");
+  }, [refreshAll, showToast]);
+
+  const createPermissionRequest = useCallback((data: { permission: PermissionAction; scope_type: PermissionScope; scope_id: string; resource_type: string; resource_id?: string; reason: string; duration_hours?: number }) => {
+    const req = db.createPermissionRequest(data);
+    refreshAll();
+    showToast(`Access request submitted for "${data.permission}".`);
+    return req;
+  }, [refreshAll, showToast]);
+
+  const reviewPermissionRequest = useCallback((requestId: string, action: "approve" | "reject" | "temporarily_approve", tempDurationHours?: number, reviewNotes?: string) => {
+    db.reviewPermissionRequest(requestId, action, tempDurationHours, reviewNotes);
+    refreshAll();
+    showToast(`Permission request ${action.replace("_", " ")}.`);
+  }, [refreshAll, showToast]);
+
+  const delegateTask = useCallback((taskId: string, targetUserId: string, reason?: string) => {
+    const task = db.delegateTask(taskId, targetUserId, reason);
+    refreshAll();
+    showToast(`Task delegated.`);
+    return task;
+  }, [refreshAll, showToast]);
+
+  const escalateTask = useCallback((taskId: string, blockerDescription: string) => {
+    const task = db.escalateTask(taskId, blockerDescription);
+    refreshAll();
+    showToast(`🚨 Task escalated to ${task?.escalation_level?.toUpperCase()} level!`);
+    return task;
+  }, [refreshAll, showToast]);
+
+  const resolveTaskBlocker = useCallback((taskId: string, notes?: string) => {
+    const task = db.resolveTaskBlocker(taskId, notes);
+    refreshAll();
+    showToast("Blocker resolved. Task restored to in progress.");
+    return task;
+  }, [refreshAll, showToast]);
+
+  const recommendTeam = useCallback((spec: { goal: string; required_skills?: string[]; max_members?: number }) => {
+    return db.recommendTeam(spec);
+  }, []);
+
+  const createTeamFromRecommendation = useCallback((rec: AITeamRecommendation) => {
+    const team = db.createTeamFromRecommendation(rec);
+    refreshAll();
+    showToast(`Team "${team.name}" established from AI recommendation.`);
+    return team;
+  }, [refreshAll, showToast]);
+
   return (
     <ClubOpsContext.Provider
       value={{
@@ -288,6 +431,26 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
         approveTool,
         toastMessage,
         showToast,
+        teams,
+        roleAssignments,
+        permissionRequests,
+        createTeam,
+        updateTeam,
+        archiveTeam,
+        suspendTeam,
+        addTeamMember,
+        removeTeamMember,
+        transferTeamMember,
+        assignTemporaryRole,
+        assignActingOrganizer,
+        revokeRoleAssignment,
+        createPermissionRequest,
+        reviewPermissionRequest,
+        delegateTask,
+        escalateTask,
+        resolveTaskBlocker,
+        recommendTeam,
+        createTeamFromRecommendation,
       }}
     >
       {children}

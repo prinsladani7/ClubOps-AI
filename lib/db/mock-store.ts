@@ -15,6 +15,10 @@ import {
   AuditLog,
   AIToolCall,
   UserRole,
+  Team,
+  TeamMember,
+  RoleAssignment,
+  PermissionRequest,
 } from "@/types";
 
 // Static Users
@@ -1358,3 +1362,165 @@ export const SEED_AUDIT_LOGS: AuditLog[] = [
     created_at: "2026-09-18T16:00:00Z",
   },
 ];
+
+// Seed Teams (Section 2 & 5)
+export const SEED_TEAMS: Team[] = [
+  {
+    id: "team-tech-ops",
+    club_id: "club-syntax-squad",
+    event_id: "event-techfest-2026",
+    name: "Technical & Engineering Operations",
+    description: "Cloud servers, WiFi distribution, hardware labs, and coding challenge portals.",
+    organizer_id: "usr-jay",
+    status: "active",
+    created_at: "2026-08-05T10:00:00Z",
+    member_count: 5,
+    active_tasks_count: 8,
+    completed_tasks_count: 14,
+    overdue_tasks_count: 1,
+    blocked_tasks_count: 0,
+  },
+  {
+    id: "team-stage-av",
+    club_id: "club-syntax-squad",
+    event_id: "event-techfest-2026",
+    name: "Stage, AV & Logistics Core",
+    description: "Auditorium reservation, acoustic rigging, stage visuals, lighting trusses, and seating.",
+    organizer_id: "usr-priya",
+    status: "active",
+    created_at: "2026-08-05T11:00:00Z",
+    member_count: 4,
+    active_tasks_count: 7,
+    completed_tasks_count: 9,
+    overdue_tasks_count: 2,
+    blocked_tasks_count: 1,
+  },
+  {
+    id: "team-sponsorship",
+    club_id: "club-syntax-squad",
+    event_id: "event-techfest-2026",
+    name: "Sponsorship & Industry Outreach",
+    description: "Corporate partnerships, booth allocation, dean endorsements, and sponsor deliverables.",
+    organizer_id: "usr-jay",
+    status: "active",
+    created_at: "2026-08-06T09:00:00Z",
+    member_count: 3,
+    active_tasks_count: 4,
+    completed_tasks_count: 6,
+    overdue_tasks_count: 1,
+    blocked_tasks_count: 0,
+  },
+  {
+    id: "team-robowars",
+    club_id: "club-syntax-squad",
+    event_id: "event-techfest-2026",
+    name: "RoboWars Combat Arena Crew",
+    description: "Bulletproof arena polycarbonate fencing, 40kVA standby generator, and safety protocols.",
+    organizer_id: "usr-priya",
+    status: "active",
+    created_at: "2026-08-10T14:00:00Z",
+    member_count: 3,
+    active_tasks_count: 5,
+    completed_tasks_count: 5,
+    overdue_tasks_count: 0,
+    blocked_tasks_count: 0,
+  },
+];
+
+// Seed Team Members
+export const SEED_TEAM_MEMBERS: TeamMember[] = [
+  // Tech Ops Team
+  { id: "tm-01", team_id: "team-tech-ops", user_id: "usr-jay", role: "organizer", status: "active", joined_at: "2026-08-05T10:00:00Z" },
+  { id: "tm-02", team_id: "team-tech-ops", user_id: "usr-rahul", role: "volunteer", status: "active", joined_at: "2026-08-05T10:05:00Z" },
+  { id: "tm-03", team_id: "team-tech-ops", user_id: "usr-sneha", role: "volunteer", status: "active", joined_at: "2026-08-05T10:10:00Z" },
+  { id: "tm-04", team_id: "team-tech-ops", user_id: "usr-rohit", role: "volunteer", status: "active", joined_at: "2026-08-05T10:15:00Z" },
+  { id: "tm-05", team_id: "team-tech-ops", user_id: "usr-arjun", role: "volunteer", status: "active", joined_at: "2026-08-05T10:20:00Z" },
+
+  // Stage & AV Team
+  { id: "tm-06", team_id: "team-stage-av", user_id: "usr-priya", role: "organizer", status: "active", joined_at: "2026-08-05T11:00:00Z" },
+  { id: "tm-07", team_id: "team-stage-av", user_id: "usr-rahul", role: "volunteer", status: "active", joined_at: "2026-08-05T11:05:00Z" },
+  { id: "tm-08", team_id: "team-stage-av", user_id: "usr-siddharth", role: "volunteer", status: "active", joined_at: "2026-08-05T11:10:00Z" },
+  { id: "tm-09", team_id: "team-stage-av", user_id: "usr-kavita", role: "volunteer", status: "active", joined_at: "2026-08-05T11:15:00Z" },
+
+  // Sponsorship Team
+  { id: "tm-10", team_id: "team-sponsorship", user_id: "usr-jay", role: "organizer", status: "active", joined_at: "2026-08-06T09:00:00Z" },
+  { id: "tm-11", team_id: "team-sponsorship", user_id: "usr-neha", role: "volunteer", status: "active", joined_at: "2026-08-06T09:05:00Z" },
+  { id: "tm-12", team_id: "team-sponsorship", user_id: "usr-pooja", role: "volunteer", status: "active", joined_at: "2026-08-06T09:10:00Z" },
+
+  // RoboWars Arena Team
+  { id: "tm-13", team_id: "team-robowars", user_id: "usr-priya", role: "organizer", status: "active", joined_at: "2026-08-10T14:00:00Z" },
+  { id: "tm-14", team_id: "team-robowars", user_id: "usr-arjun", role: "volunteer", status: "active", joined_at: "2026-08-10T14:05:00Z" },
+  { id: "tm-15", team_id: "team-robowars", user_id: "usr-ananya", role: "volunteer", status: "active", joined_at: "2026-08-10T14:10:00Z" },
+];
+
+// Seed Temporary Event Roles (Section 8 & 9)
+export const SEED_ROLE_ASSIGNMENTS: RoleAssignment[] = [
+  {
+    id: "ra-01",
+    user_id: "usr-rahul",
+    role: "STAGE_LEAD",
+    scope_type: "team",
+    scope_id: "team-stage-av",
+    starts_at: "2026-09-01T00:00:00Z",
+    expires_at: "2026-10-30T23:59:59Z",
+    status: "active",
+    granted_by: "usr-prins",
+    created_at: "2026-09-01T08:00:00Z",
+  },
+  {
+    id: "ra-02",
+    user_id: "usr-sneha",
+    role: "ACTING_ORGANIZER",
+    scope_type: "team",
+    scope_id: "team-tech-ops",
+    starts_at: "2026-09-10T00:00:00Z",
+    expires_at: "2026-10-25T23:59:59Z",
+    status: "active",
+    granted_by: "usr-prins",
+    created_at: "2026-09-10T09:00:00Z",
+  },
+  {
+    id: "ra-03",
+    user_id: "usr-kunal",
+    role: "REGISTRATION_LEAD",
+    scope_type: "event",
+    scope_id: "event-techfest-2026",
+    starts_at: "2026-08-01T00:00:00Z",
+    expires_at: "2026-08-31T23:59:59Z",
+    status: "expired",
+    granted_by: "usr-prins",
+    created_at: "2026-08-01T08:00:00Z",
+  },
+];
+
+// Seed Permission Requests (Section 10)
+export const SEED_PERMISSION_REQUESTS: PermissionRequest[] = [
+  {
+    id: "pr-01",
+    requester_id: "usr-rahul",
+    permission: "APPROVE_AI_ACTION",
+    scope_type: "task",
+    scope_id: "task-01",
+    resource_type: "task",
+    resource_id: "task-01",
+    reason: "Require permission to sign off and approve emergency auditorium staging contractor addendum.",
+    status: "pending",
+    created_at: "2026-09-19T08:00:00Z",
+  },
+  {
+    id: "pr-02",
+    requester_id: "usr-sneha",
+    permission: "EDIT_EVENT",
+    scope_type: "event",
+    scope_id: "event-techfest-2026",
+    resource_type: "event",
+    resource_id: "event-techfest-2026",
+    reason: "Extend sound check window from 2 PM to 4 PM for acoustic calibration.",
+    status: "approved",
+    reviewer_id: "usr-prins",
+    reviewed_at: "2026-09-18T14:30:00Z",
+    expires_at: "2026-10-27T00:00:00Z",
+    created_at: "2026-09-18T12:00:00Z",
+  },
+];
+

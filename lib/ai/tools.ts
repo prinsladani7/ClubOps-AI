@@ -84,6 +84,43 @@ export const GetCalendarSchema = z.object({
   end_date: z.string().optional(),
 });
 
+export const CreateTeamSchema = z.object({
+  name: z.string().min(3),
+  description: z.string().optional(),
+  organizer_id: z.string().optional(),
+});
+
+export const RecommendTeamSchema = z.object({
+  goal: z.string().min(3),
+  required_skills: z.array(z.string()).optional(),
+  max_members: z.number().optional(),
+});
+
+export const DelegateTaskSchema = z.object({
+  task_id: z.string(),
+  target_user_id: z.string(),
+  reason: z.string().optional(),
+});
+
+export const EscalateTaskSchema = z.object({
+  task_id: z.string(),
+  blocker_description: z.string().min(5),
+});
+
+export const RequestPermissionSchema = z.object({
+  permission: z.string(),
+  scope_type: z.enum(["organization", "team", "event", "task"]).default("team"),
+  scope_id: z.string().optional(),
+  reason: z.string().min(5),
+});
+
+export const ReviewPermissionRequestSchema = z.object({
+  request_id: z.string(),
+  action: z.enum(["approve", "reject", "temporarily_approve"]),
+  duration_hours: z.number().optional(),
+  review_notes: z.string().optional(),
+});
+
 // 2. Typed Tool Registry with Permission & Safety Tier Rules
 export const TOOL_REGISTRY: Record<AIToolName, ToolDefinition> = {
   create_task: {
@@ -197,6 +234,54 @@ export const TOOL_REGISTRY: Record<AIToolName, ToolDefinition> = {
     sideEffectTier: "auto",
     minRole: "member",
     requiresConfirmation: false,
+  },
+  create_team: {
+    name: "create_team",
+    description: "Create and charter a new operational team.",
+    schema: CreateTeamSchema,
+    sideEffectTier: "restricted",
+    minRole: "admin",
+    requiresConfirmation: true,
+  },
+  recommend_team: {
+    name: "recommend_team",
+    description: "Use AI Team Builder to recommend organizer, members, and skill coverage based on a goal.",
+    schema: RecommendTeamSchema,
+    sideEffectTier: "auto",
+    minRole: "volunteer",
+    requiresConfirmation: false,
+  },
+  delegate_task: {
+    name: "delegate_task",
+    description: "Delegate an operational task to another volunteer with assignment history logging.",
+    schema: DelegateTaskSchema,
+    sideEffectTier: "confirm",
+    minRole: "organizer",
+    requiresConfirmation: true,
+  },
+  escalate_task: {
+    name: "escalate_task",
+    description: "Trigger emergency escalation for a blocked task (Volunteer -> Organizer -> Admin).",
+    schema: EscalateTaskSchema,
+    sideEffectTier: "confirm",
+    minRole: "volunteer",
+    requiresConfirmation: true,
+  },
+  request_permission: {
+    name: "request_permission",
+    description: "Submit a formal permission elevation request with justification.",
+    schema: RequestPermissionSchema,
+    sideEffectTier: "confirm",
+    minRole: "volunteer",
+    requiresConfirmation: true,
+  },
+  review_permission_request: {
+    name: "review_permission_request",
+    description: "Approve, reject, or temporarily grant a permission request.",
+    schema: ReviewPermissionRequestSchema,
+    sideEffectTier: "confirm",
+    minRole: "organizer",
+    requiresConfirmation: true,
   },
 };
 

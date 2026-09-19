@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CheckSquare,
   Users,
+  Users2,
   Video,
   FileText,
   AlertTriangle,
@@ -36,6 +37,7 @@ export function Sidebar() {
   const navItems = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
     { label: "Events", href: "/events", icon: CalendarDays },
+    { label: "Teams", href: "/dashboard/team-management", icon: Users2 },
     {
       label: "Tasks",
       href: "/tasks",

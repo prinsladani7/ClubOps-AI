@@ -214,11 +214,82 @@ class ClubOpsAIProvider implements AIProvider {
       return { content: text };
     }
 
-    // 7. General Assistant Response
+    // 7. AI Team Builder Query (Section 6)
+    if (
+      lower.includes("team") &&
+      (lower.includes("build") ||
+        lower.includes("recommend") ||
+        lower.includes("form") ||
+        lower.includes("suggest") ||
+        lower.includes("squad") ||
+        lower.includes("builder"))
+    ) {
+      const rec = db.recommendTeam({
+        goal: command.replace(/build|recommend|form|a|team|for|suggest|squad/gi, "").trim() || "Event Operations",
+        required_skills: ["Coordination", "Audio/Visual", "Technical", "Logistics"],
+        max_members: 4,
+      });
+
+      const membersList = rec.recommended_members.map((m) => `• **${m}** (Volunteer)`).join("\n");
+      const reasoningList = rec.reasoning.map((r) => `• ${r}`).join("\n");
+
+      return {
+        content: `### 🤖 AI Team Builder Recommendation\n\n` +
+          `**Proposed Team:** ${rec.team_name}\n` +
+          `**Recommended Organizer:** 👑 **${rec.recommended_organizer}**\n\n` +
+          `**Recommended Core Members:**\n${membersList}\n\n` +
+          `**Workload & Health Metrics:**\n` +
+          `• Average Team Workload: **${rec.workload_analysis.average_team_workload_pct}%** (${rec.workload_analysis.capacity_health})\n` +
+          `• High-Burnout Candidates Bypassed: **${rec.workload_analysis.overloaded_candidates_bypassed}**\n\n` +
+          `**Strategic Reasoning:**\n${reasoningList}\n\n` +
+          `*Admins can approve and charter this squad in the [Team Management Center](/dashboard/team-management).*`,
+      };
+    }
+
+    // 8. Task Delegation Query (Section 7)
+    if (lower.includes("delegate") && lower.includes("task")) {
+      const tasks = db.getTasks();
+      const targetTask = tasks[0];
+      const vols = db.getVolunteers();
+      const targetVol = vols.find((v) => v.availability === "available") || vols[0];
+
+      if (targetTask && targetVol.user) {
+        try {
+          const delegated = db.delegateTask(targetTask.id, targetVol.user.id, "Delegated via AI Copilot Command");
+          return {
+            content: `✅ Successfully delegated task **"${delegated?.title}"** to **${targetVol.user.name}**.\n\n` +
+              `Delegation step recorded in audit logs and assignment history (Current Step #${delegated?.delegation_chain?.length}).`,
+          };
+        } catch (err: any) {
+          return { content: `Delegation Notice: ${err.message}` };
+        }
+      }
+    }
+
+    // 9. Emergency Escalation Query (Section 11)
+    if (lower.includes("escalate") && lower.includes("task")) {
+      const blockedTask = db.getTasks().find((t) => t.status === "blocked") || db.getTasks()[0];
+      if (blockedTask) {
+        try {
+          const escalated = db.escalateTask(blockedTask.id, "Critical delay encountered during execution.");
+          return {
+            content: `🚨 **Emergency Escalation Activated:**\n\n` +
+              `Task **"${escalated?.title}"** has been elevated to **${escalated?.escalation_level?.toUpperCase()}** tier.\n` +
+              `Assigned to escalation lead: **${escalated?.escalated_to}**.\n` +
+              `Status flagged as blocked and priority alert dispatched.`,
+          };
+        } catch (err: any) {
+          return { content: `Escalation Notice: ${err.message}` };
+        }
+      }
+    }
+
+    // 10. General Assistant Response
     return {
       content: `I am **ClubOps AI**, your event command center copilot for **${db.getEvent().name}**.\n\n` +
         `You can ask me to:\n` +
         `• *"What needs my attention right now?"*\n` +
+        `• *"Build a team for Grand Keynote Audio/Visual operations."*\n` +
         `• *"Create a high-priority task for Rahul to confirm the venue by Friday."*\n` +
         `• *"Who has the highest workload?"*\n` +
         `• *"What are the sponsorship approval requirements?"*\n` +
