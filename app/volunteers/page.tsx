@@ -179,7 +179,16 @@ export default function VolunteersPage() {
 
       {/* Volunteer Grid (24 Cards) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredVolunteers.map((vol) => {
+        {filteredVolunteers.length === 0 ? (
+          <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-8 space-y-3">
+            <Users className="w-10 h-10 text-slate-600 mx-auto" />
+            <h3 className="text-base font-bold text-white">No Volunteers Found</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              No volunteers match your search filter or no volunteers have been onboarded yet.
+            </p>
+          </div>
+        ) : (
+          filteredVolunteers.map((vol) => {
           const loadScore = vol.workloadScore || 30;
           return (
             <Card
@@ -245,7 +254,8 @@ export default function VolunteersPage() {
               </div>
             </Card>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* AI Rebalance Modal */}

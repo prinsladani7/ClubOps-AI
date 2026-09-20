@@ -142,7 +142,14 @@ export default function AdminReportsPage() {
 
       {/* Reports Listing */}
       <div className="space-y-4">
-        {filteredReports.map((report) => {
+        {filteredReports.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/40 text-slate-400 space-y-2">
+            <FileText className="w-8 h-8 mx-auto text-slate-600" />
+            <p className="text-sm font-semibold text-white">No progress reports filed</p>
+            <p className="text-xs text-slate-500">Milestone progress reports submitted by project organizers will appear here.</p>
+          </div>
+        ) : (
+          filteredReports.map((report) => {
           const proj = projects.find((p) => p.id === report.project_id);
 
           return (
@@ -213,7 +220,8 @@ export default function AdminReportsPage() {
               )}
             </div>
           );
-        })}
+        })
+        )}
       </div>
     </div>
   );

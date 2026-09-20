@@ -401,7 +401,16 @@ export default function TasksPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredTasks.map((task) => (
+                {filteredTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-slate-500">
+                      <CheckSquare className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-300">No tasks found</p>
+                      <p className="text-xs text-slate-500 mt-1">Create your first deliverable to begin operational tracking.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTasks.map((task) => (
                   <tr
                     key={task.id}
                     className="hover:bg-slate-900/80 transition-colors cursor-pointer"
@@ -466,7 +475,8 @@ export default function TasksPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                ))
+                )}
               </tbody>
             </table>
           </div>

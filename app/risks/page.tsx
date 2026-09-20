@@ -155,7 +155,23 @@ export default function RisksPage() {
 
       {/* Risk Cards List: Strict 4-Part Structure (WHY, EVIDENCE, IMPACT, WHAT TO DO) */}
       <div className="space-y-4">
-        {filteredRisks.map((risk) => (
+        {filteredRisks.length === 0 ? (
+          <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-8 space-y-3">
+            <CheckCircle className="w-10 h-10 text-emerald-400 mx-auto" />
+            <h3 className="text-base font-bold text-white">All Clear — Zero Active Threats Detected</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              The Risk Intelligence Engine continuously monitors dependency chains, delivery deadlines, and personnel workloads.
+            </p>
+            <Button
+              onClick={handleScan}
+              disabled={isScanning}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs mt-2"
+            >
+              Run Live Risk Scan
+            </Button>
+          </div>
+        ) : (
+          filteredRisks.map((risk) => (
           <Card
             key={risk.id}
             className={`border transition-all rounded-2xl ${
@@ -272,7 +288,8 @@ export default function RisksPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        ))
+        )}
       </div>
     </div>
   );

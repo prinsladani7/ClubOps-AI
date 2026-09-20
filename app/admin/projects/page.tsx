@@ -124,7 +124,16 @@ export default function AdminProjectsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
-              {projects.map((proj) => {
+              {projects.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-slate-500">
+                    <Briefcase className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-slate-300">No projects defined yet</p>
+                    <p className="text-xs text-slate-500 mt-1">Create your first project charter to organize operations.</p>
+                  </td>
+                </tr>
+              ) : (
+                projects.map((proj) => {
                 const org = users.find((u) => u.id === proj.organizer_id);
                 return (
                   <tr key={proj.id} className="hover:bg-slate-900/40 transition-colors">
@@ -183,7 +192,8 @@ export default function AdminProjectsPage() {
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>

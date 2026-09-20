@@ -73,7 +73,8 @@ export default function MeetingsPage() {
     setShowPasteModal(false);
 
     setTimeout(() => {
-      const items = extractActions(activeMeeting.id, customTranscript);
+      const targetMeetingId = activeMeeting?.id || meetings[0]?.id || "mtg-custom";
+      const items = extractActions(targetMeetingId, customTranscript);
       setSelectedActionIds(items.map((i) => i.id));
       setIsProcessing(false);
       setCustomTranscript("");
@@ -129,29 +130,37 @@ export default function MeetingsPage() {
               <CardDescription>Select a scheduled sync or committee debrief.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2.5 pt-4">
-              {meetings.map((m) => (
-                <div
-                  key={m.id}
-                  onClick={() => setSelectedMeetingId(m.id)}
-                  className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                    selectedMeetingId === m.id
-                      ? "border-indigo-500/60 bg-indigo-950/40 shadow-aiGlow"
-                      : "border-slate-800/80 bg-slate-950/60 hover:bg-slate-900/80 text-slate-400"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-100">{m.title}</span>
-                    <Badge variant={m.transcript_status === "processed" ? "ai" : "secondary"} className="text-[9px] font-mono uppercase">
-                      {m.transcript_status.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1.5">
-                    <span>📅 {formatDate(m.scheduled_at)}</span>
-                    <span>•</span>
-                    <span>{m.action_items_count || 0} Action Items</span>
-                  </div>
+              {meetings.length === 0 ? (
+                <div className="p-6 text-center border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                  <Video className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+                  <p className="font-semibold text-slate-300">No meetings recorded</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Click &quot;Paste Custom Transcript&quot; to extract operational action items.</p>
                 </div>
-              ))}
+              ) : (
+                meetings.map((m) => (
+                  <div
+                    key={m.id}
+                    onClick={() => setSelectedMeetingId(m.id)}
+                    className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                      selectedMeetingId === m.id
+                        ? "border-indigo-500/60 bg-indigo-950/40 shadow-aiGlow"
+                        : "border-slate-800/80 bg-slate-950/60 hover:bg-slate-900/80 text-slate-400"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-100">{m.title}</span>
+                      <Badge variant={m.transcript_status === "processed" ? "ai" : "secondary"} className="text-[9px] font-mono uppercase">
+                        {m.transcript_status.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1.5">
+                      <span>📅 {formatDate(m.scheduled_at)}</span>
+                      <span>•</span>
+                      <span>{m.action_items_count || 0} Action Items</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 

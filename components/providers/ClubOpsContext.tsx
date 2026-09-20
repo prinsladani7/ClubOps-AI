@@ -45,6 +45,7 @@ import { CPMSimulationResult, DelayImpactResult } from "@/lib/algorithms/cpm";
 import { OptimizationSummary } from "@/lib/algorithms/workload-optimizer";
 import { HackathonRiskReport } from "@/lib/algorithms/risk-predictor";
 import { RunOfShowReport } from "@/lib/algorithms/run-of-show";
+import { safeStorage } from "@/lib/utils/storage";
 
 interface ClubOpsContextType {
   currentUser: User;
@@ -180,23 +181,21 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      if (typeof window !== "undefined") {
-        const storedAuth = localStorage.getItem("clubops_auth") === "true";
-        const storedUserId = localStorage.getItem("clubops_user_id");
-        if (storedAuth && storedUserId) {
-          const u = db.getUserById(storedUserId);
-          if (u && u.status === "active") {
-            db.setCurrentUser(u.id);
-            setCurrentUser(u);
-            setIsAuthenticated(true);
-          } else {
-            localStorage.removeItem("clubops_auth");
-            localStorage.removeItem("clubops_user_id");
-            setIsAuthenticated(false);
-          }
+      const storedAuth = safeStorage.getItem("clubops_auth") === "true";
+      const storedUserId = safeStorage.getItem("clubops_user_id");
+      if (storedAuth && storedUserId) {
+        const u = db.getUserById(storedUserId);
+        if (u && u.status === "active") {
+          db.setCurrentUser(u.id);
+          setCurrentUser(u);
+          setIsAuthenticated(true);
         } else {
+          safeStorage.removeItem("clubops_auth");
+          safeStorage.removeItem("clubops_user_id");
           setIsAuthenticated(false);
         }
+      } else {
+        setIsAuthenticated(false);
       }
     } catch {
       setIsAuthenticated(false);
@@ -269,10 +268,8 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     const user = db.setCurrentUser(userId);
     setCurrentUser(user);
     setIsAuthenticated(true);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("clubops_auth", "true");
-      localStorage.setItem("clubops_user_id", userId);
-    }
+    safeStorage.setItem("clubops_auth", "true");
+    safeStorage.setItem("clubops_user_id", userId);
     refreshAll();
     showToast(`Welcome back, ${user.name}! Authenticated as ${user.role.toUpperCase()}.`);
   }, [refreshAll, showToast]);
@@ -285,10 +282,8 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     if (res.user) {
       setCurrentUser(res.user);
       setIsAuthenticated(true);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("clubops_auth", "true");
-        localStorage.setItem("clubops_user_id", res.user.id);
-      }
+      safeStorage.setItem("clubops_auth", "true");
+      safeStorage.setItem("clubops_user_id", res.user.id);
       refreshAll();
       showToast(`Signed in successfully as ${res.user.name} (${res.user.role.toUpperCase()}).`);
     }
@@ -303,10 +298,8 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     db.setCurrentUser(user.id);
     setCurrentUser(user);
     setIsAuthenticated(true);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("clubops_auth", "true");
-      localStorage.setItem("clubops_user_id", user.id);
-    }
+    safeStorage.setItem("clubops_auth", "true");
+    safeStorage.setItem("clubops_user_id", user.id);
     refreshAll();
     showToast(`Account created! Signed in as ${user.name}.`);
     return { success: true };
@@ -337,10 +330,8 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     setIsAuthenticated(false);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("clubops_auth");
-      localStorage.removeItem("clubops_user_id");
-    }
+    safeStorage.removeItem("clubops_auth");
+    safeStorage.removeItem("clubops_user_id");
     showToast("You have been signed out. Please log in to continue.");
   }, [showToast]);
 

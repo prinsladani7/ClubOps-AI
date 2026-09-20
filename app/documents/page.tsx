@@ -266,7 +266,24 @@ export default function DocumentsPage() {
 
         {/* Document Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {visibleDocs.map((doc) => {
+          {visibleDocs.length === 0 ? (
+            <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-8 space-y-3">
+              <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
+              <h3 className="text-base font-bold text-white">No Documents Found</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                No policy documents match your search or your current clearance level.
+              </p>
+              {currentUser.role === "admin" && (
+                <Button
+                  onClick={() => setShowUploadModal(true)}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs mt-2"
+                >
+                  Upload Policy Document
+                </Button>
+              )}
+            </div>
+          ) : (
+            visibleDocs.map((doc) => {
             const hasAccess =
               currentUser.role === "admin" ||
               (currentUser.role === "organizer" && doc.visibility !== "admin") ||
@@ -340,7 +357,8 @@ export default function DocumentsPage() {
                 </div>
               </Card>
             );
-          })}
+          })
+          )}
         </div>
       </div>
 

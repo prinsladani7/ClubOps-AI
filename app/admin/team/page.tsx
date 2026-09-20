@@ -79,7 +79,23 @@ export default function AdminTeamPage() {
 
       {/* Teams Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {teams.map((team) => {
+        {teams.length === 0 ? (
+          <div className="col-span-full p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 text-slate-400 space-y-3">
+            <Users2 className="w-10 h-10 mx-auto text-slate-600" />
+            <h3 className="text-base font-bold text-white">No Squads Formed Yet</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Create functional squads to delegate roles and organize club operations.
+            </p>
+            <Button
+              onClick={() => setIsCreateOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 mt-2 shadow-aiGlow"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              <span>Create First Squad</span>
+            </Button>
+          </div>
+        ) : (
+          teams.map((team) => {
           const org = users.find((u) => u.id === team.organizer_id);
           return (
             <div
@@ -118,7 +134,8 @@ export default function AdminTeamPage() {
               </Link>
             </div>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* Creation Modal */}

@@ -148,11 +148,15 @@ export default function AlgorithmIntelligencePage() {
                     onChange={(e) => setSelectedSimTask(e.target.value)}
                     className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-indigo-500"
                   >
-                    {tasks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title.slice(0, 35)}... ({t.priority.toUpperCase()})
-                      </option>
-                    ))}
+                    {tasks.length === 0 ? (
+                      <option value="">No deliverables in database</option>
+                    ) : (
+                      tasks.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title.slice(0, 35)}... ({t.priority.toUpperCase()})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -231,41 +235,51 @@ export default function AlgorithmIntelligencePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-sans">
-                  {Object.values(cpmSchedule.nodes).slice(0, 10).map((node, idx) => (
-                    <tr
-                      key={node.id}
-                      className={`hover:bg-slate-800/30 transition-colors ${
-                        node.isCritical ? "bg-rose-950/10" : ""
-                      }`}
-                    >
-                      <td className="py-3 px-3 font-mono font-bold text-slate-400">#{idx + 1}</td>
-                      <td className="py-3 px-3 font-semibold text-white max-w-xs truncate">{node.title}</td>
-                      <td className="py-3 px-3 font-mono text-slate-300">{node.durationHours}h</td>
-                      <td className="py-3 px-3 font-mono text-indigo-300">{node.earlyStart}h / {node.earlyFinish}h</td>
-                      <td className="py-3 px-3 font-mono text-slate-400">{node.lateStart}h / {node.lateFinish}h</td>
-                      <td className="py-3 px-3 font-mono">
-                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                          node.totalFloat === 0
-                            ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                            : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                        }`}>
-                          {node.totalFloat}h Slack
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-400">{node.freeFloat}h</td>
-                      <td className="py-3 px-3">
-                        {node.isCritical ? (
-                          <Badge variant="destructive" className="text-[9px] font-mono">
-                            CRITICAL
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[9px] font-mono text-slate-400">
-                            BUFFERED
-                          </Badge>
-                        )}
+                  {Object.values(cpmSchedule.nodes).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                        <GitCommit className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                        <p className="text-sm font-semibold text-slate-300">No CPM milestones computed</p>
+                        <p className="text-xs text-slate-500 mt-1">Create deliverables with dependencies to generate topological Critical Path DAG.</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    Object.values(cpmSchedule.nodes).slice(0, 10).map((node, idx) => (
+                      <tr
+                        key={node.id}
+                        className={`hover:bg-slate-800/30 transition-colors ${
+                          node.isCritical ? "bg-rose-950/10" : ""
+                        }`}
+                      >
+                        <td className="py-3 px-3 font-mono font-bold text-slate-400">#{idx + 1}</td>
+                        <td className="py-3 px-3 font-semibold text-white max-w-xs truncate">{node.title}</td>
+                        <td className="py-3 px-3 font-mono text-slate-300">{node.durationHours}h</td>
+                        <td className="py-3 px-3 font-mono text-indigo-300">{node.earlyStart}h / {node.earlyFinish}h</td>
+                        <td className="py-3 px-3 font-mono text-slate-400">{node.lateStart}h / {node.lateFinish}h</td>
+                        <td className="py-3 px-3 font-mono">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                            node.totalFloat === 0
+                              ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                              : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          }`}>
+                            {node.totalFloat}h Slack
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-mono text-slate-400">{node.freeFloat}h</td>
+                        <td className="py-3 px-3">
+                          {node.isCritical ? (
+                            <Badge variant="destructive" className="text-[9px] font-mono">
+                              CRITICAL
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[9px] font-mono text-slate-400">
+                              BUFFERED
+                            </Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -331,53 +345,61 @@ export default function AlgorithmIntelligencePage() {
             </h3>
 
             <div className="space-y-3">
-              {workloadOptimization.rebalanceActions.map((act, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white">{act.taskTitle}</span>
-                      <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                        {act.taskPriority}
-                      </Badge>
-                      <span className="text-[11px] font-mono text-indigo-400 font-semibold">
-                        Jaccard Match: {act.skillMatchPercentage}%
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-300 leading-relaxed">{act.rationale}</p>
-
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {act.matchedSkills.map((sk, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-950/60 text-indigo-300 border border-indigo-800/50 font-mono"
-                        >
-                          {sk}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
-                    <div className="text-right">
-                      <p className="text-slate-400 text-[10px]">From</p>
-                      <p className="text-rose-400 font-bold">{act.fromVolunteerName}</p>
-                      <p className="text-[10px] text-slate-500">{act.fromWorkloadBefore}% ➔ {act.fromWorkloadAfter}%</p>
-                    </div>
-
-                    <ArrowRight className="w-4 h-4 text-slate-500" />
-
-                    <div>
-                      <p className="text-slate-400 text-[10px]">To</p>
-                      <p className="text-emerald-400 font-bold">{act.toVolunteerName}</p>
-                      <p className="text-[10px] text-slate-500">{act.toWorkloadBefore}% ➔ {act.toWorkloadAfter}%</p>
-                    </div>
-                  </div>
+              {workloadOptimization.rebalanceActions.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-slate-800 rounded-2xl text-slate-400 text-xs">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                  <p className="font-semibold text-white">Workload Variance Within Optimal Bounds</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">All volunteer assignments are balanced. No reallocations needed.</p>
                 </div>
-              ))}
+              ) : (
+                workloadOptimization.rebalanceActions.map((act, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">{act.taskTitle}</span>
+                        <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                          {act.taskPriority}
+                        </Badge>
+                        <span className="text-[11px] font-mono text-indigo-400 font-semibold">
+                          Jaccard Match: {act.skillMatchPercentage}%
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-300 leading-relaxed">{act.rationale}</p>
+
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {act.matchedSkills.map((sk, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-950/60 text-indigo-300 border border-indigo-800/50 font-mono"
+                          >
+                            {sk}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
+                      <div className="text-right">
+                        <p className="text-slate-400 text-[10px]">From</p>
+                        <p className="text-rose-400 font-bold">{act.fromVolunteerName}</p>
+                        <p className="text-[10px] text-slate-500">{act.fromWorkloadBefore}% ➔ {act.fromWorkloadAfter}%</p>
+                      </div>
+
+                      <ArrowRight className="w-4 h-4 text-slate-500" />
+
+                      <div>
+                        <p className="text-slate-400 text-[10px]">To</p>
+                        <p className="text-emerald-400 font-bold">{act.toVolunteerName}</p>
+                        <p className="text-[10px] text-slate-500">{act.toWorkloadBefore}% ➔ {act.toWorkloadAfter}%</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -453,44 +475,52 @@ export default function AlgorithmIntelligencePage() {
             <h3 className="text-base font-bold text-white">Deliverable Risk Score Breakdown</h3>
 
             <div className="space-y-3">
-              {riskReport.evaluatedTasks.slice(0, 6).map((task) => (
-                <div
-                  key={task.taskId}
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-white">{task.taskTitle}</span>
-                      <Badge
-                        variant={task.threatTier === "CRITICAL" ? "destructive" : "warning"}
-                        className="text-[10px] font-mono"
-                      >
-                        {task.threatTier} ({task.compositeRiskScore}/100)
-                      </Badge>
-                      {task.isSinglePointOfFailure && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold">
-                          SPOF
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-indigo-300">
-                      💡 <span className="font-semibold">Recommended Action:</span> {task.recommendedAction}
-                    </p>
-
-                    <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-slate-400">
-                      {task.riskFactors.map((f, i) => (
-                        <span key={i} className="flex items-center gap-1">
-                          <span className="font-mono text-slate-500">{f.name}:</span>
-                          <span className={f.score >= 70 ? "text-rose-400 font-semibold" : "text-slate-300"}>
-                            {f.detail}
+              {riskReport.evaluatedTasks.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-slate-800 rounded-2xl text-slate-400 text-xs">
+                  <ShieldAlert className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="font-semibold text-white">No Deliverables To Evaluate</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Threat predictor evaluates live deliverables in the project database.</p>
+                </div>
+              ) : (
+                riskReport.evaluatedTasks.slice(0, 6).map((task) => (
+                  <div
+                    key={task.taskId}
+                    className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-white">{task.taskTitle}</span>
+                        <Badge
+                          variant={task.threatTier === "CRITICAL" ? "destructive" : "warning"}
+                          className="text-[10px] font-mono"
+                        >
+                          {task.threatTier} ({task.compositeRiskScore}/100)
+                        </Badge>
+                        {task.isSinglePointOfFailure && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold">
+                            SPOF
                           </span>
-                        </span>
-                      ))}
+                        )}
+                      </div>
+
+                      <p className="text-xs text-indigo-300">
+                        💡 <span className="font-semibold">Recommended Action:</span> {task.recommendedAction}
+                      </p>
+
+                      <div className="flex flex-wrap gap-3 pt-1 text-[11px] text-slate-400">
+                        {task.riskFactors.map((f, i) => (
+                          <span key={i} className="flex items-center gap-1">
+                            <span className="font-mono text-slate-500">{f.name}:</span>
+                            <span className={f.score >= 70 ? "text-rose-400 font-semibold" : "text-slate-300"}>
+                              {f.detail}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

@@ -300,6 +300,13 @@ export default function MentorHelpQPage() {
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               No tickets match your active filter criteria. Check back soon or request mentor help if your team needs assistance.
             </p>
+            <button
+              onClick={() => setShowRequestModal(true)}
+              className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-aiGlow inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Request Floating Technical Mentor</span>
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

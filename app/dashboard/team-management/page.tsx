@@ -235,7 +235,23 @@ export default function TeamManagementPage() {
       {/* TAB 1: TEAMS GRID */}
       {activeTab === "teams" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTeams.map((team) => {
+          {filteredTeams.length === 0 ? (
+            <div className="col-span-full p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 text-slate-400 space-y-3">
+              <Users2 className="w-10 h-10 mx-auto text-slate-600" />
+              <h3 className="text-base font-bold text-white">No Teams Found</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Form functional squads to delegate roles and organize club operations.
+              </p>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-aiGlow inline-flex items-center gap-2"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create New Team</span>
+              </button>
+            </div>
+          ) : (
+            filteredTeams.map((team) => {
             const actingAssignment = roleAssignments.find(
               (ra) =>
                 ra.role === "ACTING_ORGANIZER" &&
@@ -336,7 +352,8 @@ export default function TeamManagementPage() {
                 </div>
               </div>
             );
-          })}
+          })
+          )}
         </div>
       )}
 
