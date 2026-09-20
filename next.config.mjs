@@ -8,6 +8,7 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   poweredByHeader: false, // Prevents X-Powered-By: Next.js information disclosure
+  output: process.env.BUILD_STANDALONE === "true" ? "standalone" : undefined,
   async headers() {
     return [
       {

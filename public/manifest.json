@@ -1,0 +1,16 @@
+{
+  "name": "ClubOps AI - Collegiate Operations Platform",
+  "short_name": "ClubOps AI",
+  "description": "The AI Operating System for Collegiate Club Events & Hackathon Operations",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070A11",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

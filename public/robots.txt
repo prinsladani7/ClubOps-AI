@@ -1,0 +1,9 @@
+# ClubOps AI - Robots Exclusion Protocol
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /organizer/
+Disallow: /volunteer/
+Disallow: /api/
+
+Sitemap: https://clubops.ai/sitemap.xml
