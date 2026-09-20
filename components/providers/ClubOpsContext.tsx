@@ -164,6 +164,11 @@ interface ClubOpsContextType {
   claimMentorTicket: (ticketId: string, mentorId: string, mentorName: string) => void;
   resolveMentorTicket: (ticketId: string, resolutionNotes?: string) => void;
   toggleSponsorDeliverable: (sponsorId: string, deliverableId: string) => void;
+  createJudgingTeam: (data: { team_name: string; project_title: string; track: HackathonTrack; table_location: string; member_count?: number; github_url?: string; demo_url?: string }) => JudgingTeam;
+  createSponsor: (data: { name: string; tier: any; booth_location?: string; logo_url?: string; custom_bounty_title?: string; custom_bounty_prize?: string }) => SponsorPartner;
+  addVolunteer: (data: { name: string; email: string; phone?: string; role?: string; skills?: string[]; availability?: any; notes?: string }) => Volunteer;
+  resetToCleanSlate: () => void;
+  loadDemoData: () => void;
 }
 
 const ClubOpsContext = createContext<ClubOpsContextType | undefined>(undefined);
@@ -755,6 +760,39 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     showToast(`Sponsor deliverable status updated.`);
   }, [refreshAll, showToast]);
 
+  const createJudgingTeam = useCallback((data: { team_name: string; project_title: string; track: HackathonTrack; table_location: string; member_count?: number; github_url?: string; demo_url?: string }) => {
+    const team = db.createJudgingTeam(data);
+    refreshAll();
+    showToast(`Registered project "${team.project_title}" for team ${team.team_name}.`);
+    return team;
+  }, [refreshAll, showToast]);
+
+  const createSponsor = useCallback((data: { name: string; tier: any; booth_location?: string; logo_url?: string; custom_bounty_title?: string; custom_bounty_prize?: string }) => {
+    const sp = db.createSponsor(data);
+    refreshAll();
+    showToast(`Added sponsor partner "${sp.name}" (${String(sp.tier).toUpperCase()} tier).`);
+    return sp;
+  }, [refreshAll, showToast]);
+
+  const addVolunteer = useCallback((data: { name: string; email: string; phone?: string; role?: string; skills?: string[]; availability?: any; notes?: string }) => {
+    const vol = db.addVolunteer(data);
+    refreshAll();
+    showToast(`Onboarded volunteer ${vol.user?.name || data.name} into club roster.`);
+    return vol;
+  }, [refreshAll, showToast]);
+
+  const resetToCleanSlate = useCallback(() => {
+    db.resetToCleanSlate();
+    refreshAll();
+    showToast("Website reset to clean slate. Ready for fresh production data!");
+  }, [refreshAll, showToast]);
+
+  const loadDemoData = useCallback(() => {
+    db.loadDemoData();
+    refreshAll();
+    showToast("Bit N Build Hackathon 2026 sample dataset loaded.");
+  }, [refreshAll, showToast]);
+
   return (
     <ClubOpsContext.Provider
       value={{
@@ -862,6 +900,11 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
         claimMentorTicket,
         resolveMentorTicket,
         toggleSponsorDeliverable,
+        createJudgingTeam,
+        createSponsor,
+        addVolunteer,
+        resetToCleanSlate,
+        loadDemoData,
       }}
     >
       {children}

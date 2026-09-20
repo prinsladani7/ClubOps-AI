@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "@/lib/db";
 
 describe("Bit N Build 2026: HelpQ Mentor Dispatch Lifecycle", () => {
+  beforeEach(() => {
+    db.loadDemoData();
+  });
   it("creates a new mentor ticket with physical table coordinates and tech stack", () => {
     const ticket = db.createMentorTicket({
       team_name: "QuantumBots",

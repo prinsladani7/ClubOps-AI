@@ -5,6 +5,9 @@ import { can } from "@/lib/permissions";
 import { User } from "@/types";
 
 describe("Security & Humanized Data Integrity Checks", () => {
+  beforeEach(() => {
+    db.loadDemoData();
+  });
 
   it("prevents confidential document leakage to lower roles", () => {
     // Seed confidential document

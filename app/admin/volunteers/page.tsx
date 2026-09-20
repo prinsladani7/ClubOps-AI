@@ -16,6 +16,7 @@ import {
   Calendar,
   Layers,
   ArrowRight,
+  Plus,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ export default function AdminVolunteersPage() {
     deactivateUser,
     rebalanceWorkload,
     applyWorkloadRebalance,
+    addVolunteer,
     showToast,
   } = useClubOps();
 
@@ -40,6 +42,33 @@ export default function AdminVolunteersPage() {
   const [deactivateReason, setDeactivateReason] = useState("");
   const [reassignToUserId, setReassignToUserId] = useState("");
   const [isRebalanceModalOpen, setIsRebalanceModalOpen] = useState(false);
+
+  // Onboard modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newSkills, setNewSkills] = useState("Operations, Logistics");
+  const [newNotes, setNewNotes] = useState("Assigned to General Operations");
+
+  const handleAddVolunteer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newEmail.trim()) return;
+
+    addVolunteer({
+      name: newName.trim(),
+      email: newEmail.trim(),
+      phone: newPhone.trim() || undefined,
+      skills: newSkills.split(",").map((s) => s.trim()).filter(Boolean),
+      availability: "available",
+      notes: newNotes.trim() || "Active volunteer.",
+    });
+
+    setIsAddModalOpen(false);
+    setNewName("");
+    setNewEmail("");
+    setNewPhone("");
+  };
 
   // Compute active tasks and impact for selected member
   const impactedTasks = selectedVolunteer
@@ -108,6 +137,13 @@ export default function AdminVolunteersPage() {
 
         <div className="flex items-center gap-2.5">
           <Button
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Onboard Volunteer</span>
+          </Button>
+          <Button
             onClick={() => setIsRebalanceModalOpen(true)}
             className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 flex items-center gap-1.5 shadow-aiGlow"
           >
@@ -145,7 +181,21 @@ export default function AdminVolunteersPage() {
 
       {/* Volunteers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {volunteers.map((vol) => {
+        {volunteers.length === 0 ? (
+          <div className="col-span-3 flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-700/60 rounded-2xl text-center gap-4">
+            <Users className="w-12 h-12 text-slate-600" />
+            <div>
+              <p className="text-slate-300 font-semibold text-sm">No volunteers onboarded yet</p>
+              <p className="text-slate-500 text-xs mt-1">Register your first volunteer to start managing workloads and capacity.</p>
+            </div>
+            <Button
+              onClick={() => setIsAddModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-5 py-2 flex items-center gap-1.5 mt-2"
+            >
+              <Plus className="w-3.5 h-3.5" /> Onboard First Volunteer
+            </Button>
+          </div>
+        ) : volunteers.map((vol) => {
           const user = users.find((u) => u.id === vol.user_id);
           const userTasks = tasks.filter((t) => t.owner_id === vol.user_id);
           const activeCount = userTasks.filter((t) => t.status !== "completed" && t.status !== "done").length;
@@ -260,7 +310,101 @@ export default function AdminVolunteersPage() {
         })}
       </div>
 
-      {/* Member Removal Impact Modal (Specification Section 8.D) */}
+      {/* Onboard Volunteer Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-emerald-500/40 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                <Users className="w-5 h-5" />
+                <h3>Onboard New Volunteer</h3>
+              </div>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-slate-400 hover:text-white text-xs font-mono"
+              >
+                ✕ ESC
+              </button>
+            </div>
+
+            <form onSubmit={handleAddVolunteer} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1 col-span-2">
+                  <label className="text-slate-300 font-medium">Full Name *</label>
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    required
+                    placeholder="e.g. Alex Johnson"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <label className="text-slate-300 font-medium">Email Address *</label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    required
+                    placeholder="e.g. alex@university.edu"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <label className="text-slate-300 font-medium">Phone (optional)</label>
+                  <input
+                    type="tel"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="e.g. +91 98765 43210"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <label className="text-slate-300 font-medium">Skills (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={newSkills}
+                    onChange={(e) => setNewSkills(e.target.value)}
+                    placeholder="e.g. Operations, Logistics, Registration"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                  />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <label className="text-slate-300 font-medium">Notes</label>
+                  <input
+                    type="text"
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    placeholder="e.g. Assigned to Registration Desk"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                >
+                  Onboard Volunteer
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
       {isDeactivateModalOpen && selectedVolunteer && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-rose-500/40 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95">

@@ -252,7 +252,15 @@ export default function OrganizerDashboardPage() {
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto">
-            {activeTasks.slice(0, 6).map((task) => (
+            {activeTasks.length === 0 ? (
+              <div className="py-10 text-center space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                <p className="text-xs text-slate-400">No active tasks yet. Create a task to get started.</p>
+                <Link href="/organizer/tasks?action=create" className="inline-block mt-1 text-xs font-semibold text-cyan-400 hover:text-cyan-300">
+                  + Create Task
+                </Link>
+              </div>
+            ) : activeTasks.slice(0, 6).map((task) => (
               <div
                 key={task.id}
                 className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs"
@@ -290,7 +298,15 @@ export default function OrganizerDashboardPage() {
           </div>
 
           <div className="space-y-3 max-h-72 overflow-y-auto">
-            {scopedVolunteers.slice(0, 6).map((vol) => {
+            {scopedVolunteers.length === 0 ? (
+              <div className="py-10 text-center space-y-2">
+                <Users className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="text-xs text-slate-400">No volunteers assigned to your projects yet.</p>
+                <Link href="/admin/volunteers" className="inline-block mt-1 text-xs font-semibold text-cyan-400 hover:text-cyan-300">
+                  Go to Volunteer Roster
+                </Link>
+              </div>
+            ) : scopedVolunteers.slice(0, 6).map((vol) => {
               const u = vol.user;
               const isOverloaded = vol.availability === "overloaded" || (vol.workloadScore || 0) > 75;
 
@@ -333,3 +349,4 @@ export default function OrganizerDashboardPage() {
     </div>
   );
 }
+

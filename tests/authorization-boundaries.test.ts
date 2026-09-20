@@ -69,6 +69,7 @@ describe("ClubOps AI — Strict RBAC & Authorization Boundaries (Section 10 & 13
   };
 
   beforeEach(() => {
+    db.loadDemoData();
     db.setCurrentUser("usr-prins");
   });
 

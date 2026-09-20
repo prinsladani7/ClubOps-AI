@@ -1,7 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "@/lib/db";
 
 describe("Risk Intelligence Engine", () => {
+  beforeEach(() => {
+    db.loadDemoData();
+  });
   it("should evaluate risks from active dependency chains and overdue deadlines", () => {
     const freshRisks = db.runRiskAnalysis();
 

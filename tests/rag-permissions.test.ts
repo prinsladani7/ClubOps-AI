@@ -1,7 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "@/lib/db";
 
 describe("Permission-Aware RAG Engine", () => {
+  beforeEach(() => {
+    db.loadDemoData();
+  });
   it("allows Organizer to retrieve confidential sponsorship policy", () => {
     const result = db.searchKnowledgeRAG("sponsorship approval requirements", "organizer");
     expect(result.permittedCount).toBeGreaterThan(0);

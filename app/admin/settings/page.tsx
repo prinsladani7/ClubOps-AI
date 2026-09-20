@@ -16,6 +16,9 @@ import {
   AlertTriangle,
   UserX,
   Snowflake,
+  Database,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
@@ -25,12 +28,20 @@ export default function AdminSettingsPage() {
   const {
     users,
     projects,
+    tasks,
+    teams,
+    volunteers,
+    judgingTeams,
+    mentorTickets,
+    sponsors,
     sessions,
     revokeSession,
     revokeAllSessions,
     suspendUser,
     activateUser,
     freezeProjectChanges,
+    resetToCleanSlate,
+    loadDemoData,
     showToast,
   } = useClubOps();
 
@@ -282,6 +293,78 @@ export default function AdminSettingsPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Database & Data Management Controls */}
+        <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/20 via-slate-900/90 to-slate-900/90 p-6 space-y-5 shadow-xl md:col-span-2">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Database & Dataset State Management</h3>
+                <p className="text-xs text-slate-400">
+                  Switch between a clean slate zero-data production instance or pre-populate the Bit N Build Hackathon 2026 evaluation dataset.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  if (confirm("Reset website to clean slate? All projects, tasks, teams, volunteers, expo projects, tickets, and sponsors will be cleared to zero.")) {
+                    resetToCleanSlate();
+                  }
+                }}
+                variant="outline"
+                className="text-xs border-rose-500/40 text-rose-300 hover:bg-rose-500/20 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Reset to Zero Data
+              </Button>
+
+              <Button
+                onClick={() => {
+                  loadDemoData();
+                }}
+                className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-lg shadow-indigo-600/30"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Load Sample Dataset
+              </Button>
+            </div>
+          </div>
+
+          {/* Real-time Entity Counter */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 pt-1">
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-lg font-mono font-bold text-white">{projects.length}</span>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Projects</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-lg font-mono font-bold text-indigo-400">{tasks.length}</span>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Tasks</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-lg font-mono font-bold text-cyan-400">{teams.length}</span>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Teams</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-lg font-mono font-bold text-emerald-400">{volunteers.length}</span>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Volunteers</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-lg font-mono font-bold text-amber-400">{judgingTeams.length}</span>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Expo Teams</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-lg font-mono font-bold text-violet-400">{mentorTickets.length}</span>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">HelpQ Tickets</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-lg font-mono font-bold text-pink-400">{sponsors.length}</span>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Sponsors</p>
+            </div>
           </div>
         </div>
       </div>

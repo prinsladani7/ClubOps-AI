@@ -182,54 +182,74 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {projects.map((proj) => {
-            const org = users.find((u) => u.id === proj.organizer_id);
-            return (
-              <div
-                key={proj.id}
-                className="p-5 rounded-2xl border border-slate-800 bg-slate-900/70 hover:border-indigo-500/40 transition-all flex flex-col justify-between space-y-4 group"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Badge variant={proj.status === "active" ? "cyan" : "outline"} className="text-[10px] uppercase font-mono">
-                      {proj.status}
-                    </Badge>
-                    <span className="text-xs text-emerald-400 font-mono font-bold">
-                      ₹{proj.budget?.toLocaleString() || "0"}
-                    </span>
-                  </div>
-
-                  <h3 className="text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
-                    {proj.name}
-                  </h3>
-                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                    {proj.description}
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-slate-800/80 space-y-2 text-xs">
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span>Lead Organizer:</span>
-                    <span className="font-semibold text-slate-200">{org?.name || "Unassigned"}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span>Deliverable Tasks:</span>
-                    <span className="font-mono text-slate-200">
-                      {proj.completed_task_count || 0} / {proj.task_count || 0} Done
-                    </span>
-                  </div>
-                </div>
-
-                <Link
-                  href={`/admin/projects#${proj.id}`}
-                  className="w-full py-2 rounded-xl text-center text-xs font-semibold bg-slate-800/80 hover:bg-indigo-600 hover:text-white text-slate-300 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <span>Manage Project Scope</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
+          {projects.length === 0 ? (
+            <div className="col-span-full p-8 rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                <Briefcase className="w-6 h-6" />
               </div>
-            );
-          })}
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="text-base font-bold text-white">No active projects yet</h3>
+                <p className="text-xs text-slate-400">
+                  Start fresh by chartering your club's first initiative, or load the Bit N Build sample dataset in Settings to explore pre-filled data.
+                </p>
+              </div>
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Charter First Project
+              </Button>
+            </div>
+          ) : (
+            projects.map((proj) => {
+              const org = users.find((u) => u.id === proj.organizer_id);
+              return (
+                <div
+                  key={proj.id}
+                  className="p-5 rounded-2xl border border-slate-800 bg-slate-900/70 hover:border-indigo-500/40 transition-all flex flex-col justify-between space-y-4 group"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant={proj.status === "active" ? "cyan" : "outline"} className="text-[10px] uppercase font-mono">
+                        {proj.status}
+                      </Badge>
+                      <span className="text-xs text-emerald-400 font-mono font-bold">
+                        ₹{proj.budget?.toLocaleString() || "0"}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-white group-hover:text-indigo-300 transition-colors">
+                      {proj.name}
+                    </h3>
+                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                      {proj.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800/80 space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span>Lead Organizer:</span>
+                      <span className="font-semibold text-slate-200">{org?.name || "Unassigned"}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span>Deliverable Tasks:</span>
+                      <span className="font-mono text-slate-200">
+                        {proj.completed_task_count || 0} / {proj.task_count || 0} Done
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/admin/projects#${proj.id}`}
+                    className="w-full py-2 rounded-xl text-center text-xs font-semibold bg-slate-800/80 hover:bg-indigo-600 hover:text-white text-slate-300 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>Manage Project Scope</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -399,6 +419,11 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setNewProjOrganizer(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 focus:outline-none focus:border-indigo-500"
                   >
+                    {organizers.length === 0 && (
+                      <option value={currentUser.id}>
+                        {currentUser.name} (Admin / Self)
+                      </option>
+                    )}
                     {organizers.map((o) => (
                       <option key={o.id} value={o.id}>
                         {o.name}

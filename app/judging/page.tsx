@@ -24,6 +24,7 @@ import {
   BarChart3,
   HelpCircle,
   UserCheck,
+  Plus,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { HackathonTrack, JudgingTeam } from "@/types";
@@ -38,8 +39,14 @@ const ALL_TRACKS: (HackathonTrack | "ALL")[] = [
 ];
 
 export default function JudgingExpoPage() {
-  const { judgingTeams, submitJudgeScore, getNormalizedLeaderboard, currentUser, showToast } =
-    useClubOps();
+  const {
+    judgingTeams,
+    submitJudgeScore,
+    getNormalizedLeaderboard,
+    createJudgingTeam,
+    currentUser,
+    showToast,
+  } = useClubOps();
 
   const [selectedTrack, setSelectedTrack] = useState<HackathonTrack | "ALL">("ALL");
   const [activeTab, setActiveTab] = useState<"leaderboard" | "directory" | "calibration">("leaderboard");
@@ -53,6 +60,36 @@ export default function JudgingExpoPage() {
   const [impactViability, setImpactViability] = useState(8);
   const [demoPresentation, setDemoPresentation] = useState(8);
   const [feedbackNotes, setFeedbackNotes] = useState("");
+
+  // Registration modal state
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [regTeamName, setRegTeamName] = useState("");
+  const [regProjectTitle, setRegProjectTitle] = useState("");
+  const [regTrack, setRegTrack] = useState<HackathonTrack>("AI & Agents");
+  const [regTableLocation, setRegTableLocation] = useState("Lab 301, Table 1");
+  const [regMemberCount, setRegMemberCount] = useState(4);
+  const [regGithubUrl, setRegGithubUrl] = useState("https://github.com/");
+  const [regDemoUrl, setRegDemoUrl] = useState("");
+
+  const handleRegisterTeam = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regTeamName.trim() || !regProjectTitle.trim()) return;
+
+    createJudgingTeam({
+      team_name: regTeamName.trim(),
+      project_title: regProjectTitle.trim(),
+      track: regTrack,
+      table_location: regTableLocation.trim(),
+      member_count: Number(regMemberCount),
+      github_url: regGithubUrl.trim(),
+      demo_url: regDemoUrl.trim() || undefined,
+    });
+
+    setIsRegisterModalOpen(false);
+    setRegTeamName("");
+    setRegProjectTitle("");
+    setRegDemoUrl("");
+  };
 
   // Normalized leaderboard computed reactively
   const leaderboard = useMemo(() => {
@@ -193,6 +230,14 @@ export default function JudgingExpoPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setIsRegisterModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all shadow-lg shadow-indigo-600/30"
+          >
+            <Plus className="w-4 h-4" />
+            Register Expo Project
+          </button>
+
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 text-sm font-medium transition-all shadow-sm hover:border-slate-600"
@@ -339,9 +384,24 @@ export default function JudgingExpoPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  {leaderboard.map((entry) => {
-                    const originalTeam = judgingTeams.find((t) => t.id === entry.team_id);
-                    return (
+                  {leaderboard.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                        <Award className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                        <p className="text-sm font-semibold text-slate-300">No teams on the leaderboard yet</p>
+                        <p className="text-xs text-slate-500 mt-1">Register teams or submit judge scores to dynamically populate rankings.</p>
+                        <button
+                          onClick={() => setIsRegisterModalOpen(true)}
+                          className="mt-3 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                        >
+                          Register Expo Team
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    leaderboard.map((entry) => {
+                      const originalTeam = judgingTeams.find((t) => t.id === entry.team_id);
+                      return (
                       <tr
                         key={entry.team_id}
                         className="hover:bg-slate-800/40 transition-colors group"
@@ -426,7 +486,8 @@ export default function JudgingExpoPage() {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -454,96 +515,116 @@ export default function JudgingExpoPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredTeams.map((team) => (
-              <div
-                key={team.id}
-                className="rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-all flex flex-col justify-between p-5 backdrop-blur-sm group"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                      {team.track}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded">
-                      <MapPin className="w-3 h-3 text-slate-500" />
-                      {team.table_location}
-                    </span>
-                  </div>
-
-                  <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">
-                    {team.team_name}
-                  </h3>
-                  <p className="text-sm font-medium text-slate-300 mt-1 mb-3">
-                    {team.project_title}
-                  </p>
-
-                  <div className="flex items-center gap-4 text-xs text-slate-400 mb-4">
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-slate-500" />
-                      {team.member_count} Hackers
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <UserCheck className="w-3.5 h-3.5 text-slate-500" />
-                      {team.scores.length} Review{team.scores.length === 1 ? "" : "s"}
-                    </span>
-                  </div>
-
-                  {/* External Links */}
-                  <div className="flex items-center gap-3 mb-4">
-                    {team.github_url && (
-                      <a
-                        href={team.github_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
-                      >
-                        <Github className="w-3.5 h-3.5" />
-                        Source Code
-                      </a>
-                    )}
-                    {team.demo_url && (
-                      <a
-                        href={team.demo_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        Live Demo
-                      </a>
-                    )}
-                  </div>
+            {filteredTeams.length === 0 ? (
+              <div className="col-span-full p-12 rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                  <Award className="w-6 h-6" />
                 </div>
-
-                {/* Score Summary & Evaluate Action */}
-                <div className="border-t border-slate-800/80 pt-4 flex items-center justify-between">
+                <div className="max-w-md mx-auto space-y-1">
+                  <h3 className="text-base font-bold text-white">No expo teams found</h3>
+                  <p className="text-xs text-slate-400">
+                    {searchQuery ? "Try refining your search terms or track filter." : "Register the first team presenting on the floor to begin evaluations."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsRegisterModalOpen(true)}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                >
+                  Register Expo Project
+                </button>
+              </div>
+            ) : (
+              filteredTeams.map((team) => (
+                <div
+                  key={team.id}
+                  className="rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-all flex flex-col justify-between p-5 backdrop-blur-sm group"
+                >
                   <div>
-                    <div className="text-xs text-slate-500">Evaluations</div>
-                    <div className="text-sm font-semibold text-white">
-                      {team.scores.length > 0 ? (
-                        <span className="text-emerald-400">
-                          {(
-                            team.scores.reduce((sum, s) => sum + computeWeightedScore(s), 0) /
-                            team.scores.length
-                          ).toFixed(1)}{" "}
-                          / 10
-                        </span>
-                      ) : (
-                        <span className="text-slate-500">Unreviewed</span>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        {team.track}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded">
+                        <MapPin className="w-3 h-3 text-slate-500" />
+                        {team.table_location}
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">
+                      {team.team_name}
+                    </h3>
+                    <p className="text-sm font-medium text-slate-300 mt-1 mb-3">
+                      {team.project_title}
+                    </p>
+
+                    <div className="flex items-center gap-4 text-xs text-slate-400 mb-4">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-slate-500" />
+                        {team.member_count} Hackers
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <UserCheck className="w-3.5 h-3.5 text-slate-500" />
+                        {team.scores.length} Review{team.scores.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    {/* External Links */}
+                    <div className="flex items-center gap-3 mb-4">
+                      {team.github_url && (
+                        <a
+                          href={team.github_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
+                        >
+                          <Github className="w-3.5 h-3.5" />
+                          Source Code
+                        </a>
+                      )}
+                      {team.demo_url && (
+                        <a
+                          href={team.demo_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Live Demo
+                        </a>
                       )}
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleOpenEvaluationModal(team)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-sm shadow-indigo-600/20"
-                  >
-                    <Sliders className="w-3.5 h-3.5" />
-                    Score Team
-                  </button>
+                  {/* Score Summary & Evaluate Action */}
+                  <div className="border-t border-slate-800/80 pt-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-slate-500">Evaluations</div>
+                      <div className="text-sm font-semibold text-white">
+                        {team.scores.length > 0 ? (
+                          <span className="text-emerald-400">
+                            {(
+                              team.scores.reduce((sum, s) => sum + computeWeightedScore(s), 0) /
+                              team.scores.length
+                            ).toFixed(1)}{" "}
+                            / 10
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">Unreviewed</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleOpenEvaluationModal(team)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-sm shadow-indigo-600/20"
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                      Score Team
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}
@@ -555,18 +636,27 @@ export default function JudgingExpoPage() {
             <Scale className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-white block mb-1">How Gavel Calibration Works</span>
-              Every judge exhibits subjective bias (some rarely award above 7, others give 9s freely). The Z-Score formula computes each judge's mean \(\mu_j\) and standard deviation \(\sigma_j\). Scores are transformed into standard deviation offsets, then mapped to a canonical 0–100 scale.
+              Every judge exhibits subjective bias (some rarely award above 7, others give 9s freely). The Z-Score formula computes each judge's mean (μⱼ) and standard deviation (σⱼ). Scores are transformed into standard deviation offsets, then mapped to a canonical 0–100 scale.
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.values(judgeProfiles).map((profile) => {
-              const biasTag =
-                profile.mean > 8.5
-                  ? { label: "Lenient / Generous", color: "text-amber-400 bg-amber-400/10 border-amber-400/20" }
-                  : profile.mean < 7.2
-                  ? { label: "Strict / Harsh", color: "text-red-400 bg-red-400/10 border-red-400/20" }
-                  : { label: "Balanced / Centered", color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" };
+            {Object.values(judgeProfiles).length === 0 ? (
+              <div className="col-span-full p-12 rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-center space-y-3">
+                <Scale className="w-8 h-8 text-slate-600 mx-auto" />
+                <h4 className="text-sm font-bold text-white">No judge calibration data recorded</h4>
+                <p className="text-xs text-slate-400">
+                  Judges will be calibrated dynamically once evaluations begin across floor tables.
+                </p>
+              </div>
+            ) : (
+              Object.values(judgeProfiles).map((profile) => {
+                const biasTag =
+                  profile.mean > 8.5
+                    ? { label: "Lenient / Generous", color: "text-amber-400 bg-amber-400/10 border-amber-400/20" }
+                    : profile.mean < 7.2
+                    ? { label: "Strict / Harsh", color: "text-red-400 bg-red-400/10 border-red-400/20" }
+                    : { label: "Balanced / Centered", color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" };
 
               return (
                 <div
@@ -589,13 +679,13 @@ export default function JudgingExpoPage() {
                       <div className="text-base font-bold text-white">{profile.evalCount}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">Mean (\(\mu\))</div>
+                      <div className="text-xs text-slate-500">Mean (μ)</div>
                       <div className="text-base font-mono font-bold text-indigo-400">
                         {profile.mean.toFixed(2)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">StdDev (\(\sigma\))</div>
+                      <div className="text-xs text-slate-500">StdDev (σ)</div>
                       <div className="text-base font-mono font-bold text-slate-300">
                         {profile.stdDev.toFixed(2)}
                       </div>
@@ -603,7 +693,8 @@ export default function JudgingExpoPage() {
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
         </div>
       )}
@@ -767,6 +858,137 @@ export default function JudgingExpoPage() {
                   className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-md shadow-indigo-600/30"
                 >
                   Save & Calibrate Evaluation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTER EXPO PROJECT */}
+      {isRegisterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl relative my-8 animate-in zoom-in-95">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-5">
+              <div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  Bit N Build Expo Floor 2026
+                </span>
+                <h3 className="text-xl font-bold text-white mt-1.5">Register Expo Hacker Project</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Add project details and physical table location to enable judge evaluation rounds.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsRegisterModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterTeam} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Team Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. NeuralCrew, PulseChain"
+                  value={regTeamName}
+                  onChange={(e) => setRegTeamName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Project Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Real-Time Autonomous Agent Swarm"
+                  value={regProjectTitle}
+                  onChange={(e) => setRegProjectTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Hackathon Track *</label>
+                  <select
+                    value={regTrack}
+                    onChange={(e) => setRegTrack(e.target.value as HackathonTrack)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="AI & Agents">AI & Agents</option>
+                    <option value="Web3 & DeFi">Web3 & DeFi</option>
+                    <option value="IoT & Robotics">IoT & Robotics</option>
+                    <option value="Open Innovation">Open Innovation</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Table Location *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Lab 301, Table 4"
+                    value={regTableLocation}
+                    onChange={(e) => setRegTableLocation(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Member Count</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={6}
+                    value={regMemberCount}
+                    onChange={(e) => setRegMemberCount(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">GitHub Repo URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://github.com/org/repo"
+                    value={regGithubUrl}
+                    onChange={(e) => setRegGithubUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Live Demo URL (Optional)</label>
+                <input
+                  type="url"
+                  placeholder="https://my-demo-app.vercel.app"
+                  value={regDemoUrl}
+                  onChange={(e) => setRegDemoUrl(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsRegisterModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30"
+                >
+                  Complete Registration
                 </button>
               </div>
             </form>

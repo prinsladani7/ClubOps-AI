@@ -51,6 +51,7 @@ describe("RBAC & Hierarchical Team Management Engine (All 17 Scenarios)", () => 
   };
 
   beforeEach(() => {
+    db.loadDemoData();
     // Reset to Admin persona
     db.setCurrentUser("usr-prins");
   });

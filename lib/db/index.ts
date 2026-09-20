@@ -84,31 +84,31 @@ class DatabaseStore {
   private users: User[] = [...SEED_USERS];
   private club = { ...SEED_CLUB };
   private event = { ...SEED_EVENT };
-  private projects: Project[] = [...SEED_PROJECTS];
-  private projectMembers: ProjectMember[] = [...SEED_PROJECT_MEMBERS];
-  private sessions: UserSession[] = [...SEED_SESSIONS];
-  private progressReports: ProgressReport[] = [...SEED_PROGRESS_REPORTS];
+  private projects: Project[] = [];
+  private projectMembers: ProjectMember[] = [];
+  private sessions: UserSession[] = [];
+  private progressReports: ProgressReport[] = [];
   private skills: string[] = [...SEED_SKILLS];
-  private userSkills: UserSkill[] = [...SEED_USER_SKILLS];
-  private availability: AvailabilitySchedule[] = [...SEED_AVAILABILITY];
-  private timeEntries: TimeEntry[] = [...SEED_TIME_ENTRIES];
-  private teams: Team[] = [...SEED_TEAMS];
-  private teamMembers: TeamMember[] = [...SEED_TEAM_MEMBERS];
-  private roleAssignments: RoleAssignment[] = [...SEED_ROLE_ASSIGNMENTS];
-  private permissionRequests: PermissionRequest[] = [...SEED_PERMISSION_REQUESTS];
-  private volunteers: Volunteer[] = [...SEED_VOLUNTEERS];
-  private tasks: Task[] = [...SEED_TASKS];
-  private risks: Risk[] = [...SEED_RISKS];
-  private documents: Document[] = [...SEED_DOCUMENTS];
-  private chunks: DocumentChunk[] = [...SEED_DOCUMENT_CHUNKS];
-  private meetings: Meeting[] = [...SEED_MEETINGS];
-  private actionItems: MeetingActionItem[] = [...SEED_ACTION_ITEMS];
-  private announcements: Announcement[] = [...SEED_ANNOUNCEMENTS];
-  private notifications: Notification[] = [...SEED_NOTIFICATIONS];
-  private auditLogs: AuditLog[] = [...SEED_AUDIT_LOGS];
-  private judgingTeams: JudgingTeam[] = [...SEED_JUDGING_TEAMS];
-  private mentorTickets: MentorTicket[] = [...SEED_MENTOR_TICKETS];
-  private sponsors: SponsorPartner[] = [...SEED_SPONSORS];
+  private userSkills: UserSkill[] = [];
+  private availability: AvailabilitySchedule[] = [];
+  private timeEntries: TimeEntry[] = [];
+  private teams: Team[] = [];
+  private teamMembers: TeamMember[] = [];
+  private roleAssignments: RoleAssignment[] = [];
+  private permissionRequests: PermissionRequest[] = [];
+  private volunteers: Volunteer[] = [];
+  private tasks: Task[] = [];
+  private risks: Risk[] = [];
+  private documents: Document[] = [];
+  private chunks: DocumentChunk[] = [];
+  private meetings: Meeting[] = [];
+  private actionItems: MeetingActionItem[] = [];
+  private announcements: Announcement[] = [];
+  private notifications: Notification[] = [];
+  private auditLogs: AuditLog[] = [];
+  private judgingTeams: JudgingTeam[] = [];
+  private mentorTickets: MentorTicket[] = [];
+  private sponsors: SponsorPartner[] = [];
   private pendingToolCalls: AIToolCall[] = [];
   private currentUserId: string = "usr-prins"; // default persona: Prins Patel (Admin)
 
@@ -3221,6 +3221,240 @@ class DatabaseStore {
     });
 
     return true;
+  }
+
+  public createJudgingTeam(data: {
+    team_name: string;
+    project_title: string;
+    track: HackathonTrack;
+    table_location: string;
+    member_count?: number;
+    github_url?: string;
+    demo_url?: string;
+  }): JudgingTeam {
+    const id = `judge-team-${Date.now().toString().slice(-4)}`;
+    const newTeam: JudgingTeam = {
+      id,
+      team_name: data.team_name,
+      project_title: data.project_title,
+      track: data.track,
+      table_location: data.table_location,
+      member_count: data.member_count || 4,
+      github_url: data.github_url || "https://github.com/",
+      demo_url: data.demo_url || "",
+      scores: [],
+      is_disqualified: false,
+    };
+
+    this.judgingTeams.push(newTeam);
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "JUDGING_TEAM_REGISTERED",
+      entity_type: "judging_team",
+      entity_id: id,
+      metadata_json: {
+        teamName: data.team_name,
+        projectTitle: data.project_title,
+        track: data.track,
+      },
+    });
+
+    return newTeam;
+  }
+
+  public createSponsor(data: {
+    name: string;
+    tier: any;
+    booth_location?: string;
+    logo_url?: string;
+    custom_bounty_title?: string;
+    custom_bounty_prize?: string;
+  }): SponsorPartner {
+    const id = `sponsor-${Date.now().toString().slice(-4)}`;
+    const newSponsor: SponsorPartner = {
+      id,
+      name: data.name,
+      tier: data.tier,
+      logo_url:
+        data.logo_url ||
+        "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=60",
+      booth_location: data.booth_location || "Expo Booth Area",
+      custom_bounty_title: data.custom_bounty_title,
+      custom_bounty_prize: data.custom_bounty_prize,
+      bounty_submissions_count: 0,
+      deliverables: [
+        {
+          id: `del-${id}-1`,
+          title: "Booth Setup & Banner Verification",
+          category: "booth",
+          completed: false,
+        },
+        {
+          id: `del-${id}-2`,
+          title: "Sponsor Swag Distribution to Hackers",
+          category: "swag",
+          completed: false,
+        },
+        {
+          id: `del-${id}-3`,
+          title: "Dedicated Track/Bounty Mentorship Session",
+          category: "mentorship",
+          completed: false,
+        },
+      ],
+    };
+
+    this.sponsors.push(newSponsor);
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "SPONSOR_PARTNER_ADDED",
+      entity_type: "sponsor",
+      entity_id: id,
+      metadata_json: {
+        name: data.name,
+        tier: data.tier,
+        booth: newSponsor.booth_location,
+      },
+    });
+
+    return newSponsor;
+  }
+
+  public addVolunteer(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    role?: string;
+    skills?: string[];
+    availability?: "available" | "busy" | "overloaded" | "unavailable";
+    notes?: string;
+  }): Volunteer {
+    let user = this.users.find((u) => u.email.toLowerCase() === data.email.toLowerCase());
+    if (!user) {
+      const newUser: User = {
+        id: `usr-${Date.now().toString().slice(-4)}`,
+        name: data.name,
+        email: data.email,
+        role: "volunteer",
+        status: "active",
+        created_at: new Date().toISOString(),
+        phone: data.phone || "",
+      };
+      this.users.push(newUser);
+      user = newUser;
+    }
+
+    const volunteerId = `vol-${Date.now().toString().slice(-4)}`;
+    const newVolunteer: Volunteer = {
+      id: volunteerId,
+      club_id: this.club.id,
+      user_id: user.id,
+      skills: data.skills && data.skills.length > 0 ? data.skills : ["Operations", "Logistics"],
+      availability: data.availability || "available",
+      notes: data.notes || "Onboarded club volunteer.",
+      user,
+      assignedTasks: [],
+      workloadScore: 0,
+      total_hours_logged: 0,
+    };
+
+    this.volunteers.push(newVolunteer);
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "VOLUNTEER_ONBOARDED",
+      entity_type: "volunteer",
+      entity_id: volunteerId,
+      metadata_json: {
+        name: data.name,
+        email: data.email,
+        skills: newVolunteer.skills,
+      },
+    });
+
+    return newVolunteer;
+  }
+
+  public resetToCleanSlate(): void {
+    this.projects = [];
+    this.projectMembers = [];
+    this.sessions = [];
+    this.progressReports = [];
+    this.userSkills = [];
+    this.availability = [];
+    this.timeEntries = [];
+    this.teams = [];
+    this.teamMembers = [];
+    this.roleAssignments = [];
+    this.permissionRequests = [];
+    this.volunteers = [];
+    this.tasks = [];
+    this.risks = [];
+    this.documents = [];
+    this.chunks = [];
+    this.meetings = [];
+    this.actionItems = [];
+    this.announcements = [];
+    this.notifications = [];
+    this.auditLogs = [];
+    this.judgingTeams = [];
+    this.mentorTickets = [];
+    this.sponsors = [];
+    this.pendingToolCalls = [];
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "RESET_TO_CLEAN_SLATE",
+      entity_type: "system",
+      entity_id: "store",
+      metadata_json: { timestamp: new Date().toISOString() },
+    });
+  }
+
+  public loadDemoData(): void {
+    this.users = [...SEED_USERS];
+    this.club = { ...SEED_CLUB };
+    this.event = { ...SEED_EVENT };
+    this.projects = [...SEED_PROJECTS];
+    this.projectMembers = [...SEED_PROJECT_MEMBERS];
+    this.sessions = [...SEED_SESSIONS];
+    this.progressReports = [...SEED_PROGRESS_REPORTS];
+    this.skills = [...SEED_SKILLS];
+    this.userSkills = [...SEED_USER_SKILLS];
+    this.availability = [...SEED_AVAILABILITY];
+    this.timeEntries = [...SEED_TIME_ENTRIES];
+    this.teams = [...SEED_TEAMS];
+    this.teamMembers = [...SEED_TEAM_MEMBERS];
+    this.roleAssignments = [...SEED_ROLE_ASSIGNMENTS];
+    this.permissionRequests = [...SEED_PERMISSION_REQUESTS];
+    this.volunteers = [...SEED_VOLUNTEERS];
+    this.tasks = [...SEED_TASKS];
+    this.risks = [...SEED_RISKS];
+    this.documents = [...SEED_DOCUMENTS];
+    this.chunks = [...SEED_DOCUMENT_CHUNKS];
+    this.meetings = [...SEED_MEETINGS];
+    this.actionItems = [...SEED_ACTION_ITEMS];
+    this.announcements = [...SEED_ANNOUNCEMENTS];
+    this.notifications = [...SEED_NOTIFICATIONS];
+    this.auditLogs = [...SEED_AUDIT_LOGS];
+    this.judgingTeams = [...SEED_JUDGING_TEAMS];
+    this.mentorTickets = [...SEED_MENTOR_TICKETS];
+    this.sponsors = [...SEED_SPONSORS];
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "LOAD_DEMO_DATA",
+      entity_type: "system",
+      entity_id: "store",
+      metadata_json: { timestamp: new Date().toISOString() },
+    });
   }
 }
 

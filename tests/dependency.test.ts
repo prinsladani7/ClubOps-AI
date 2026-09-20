@@ -1,7 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "@/lib/db";
 
 describe("Dependency Engine", () => {
+  beforeEach(() => {
+    db.loadDemoData();
+  });
   it("should calculate downstream impact of a blocked upstream task", () => {
     // Task 1 (Confirm Grand Auditorium Booking) blocks Task 2, which blocks Task 3, which blocks Task 4
     const impact = db.calculateDownstreamImpact("task-01");

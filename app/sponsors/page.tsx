@@ -20,6 +20,7 @@ import {
   MapPin,
   TrendingUp,
   FileCheck,
+  Plus,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { SponsorPartner, SponsorTier } from "@/types";
@@ -27,10 +28,35 @@ import { SponsorPartner, SponsorTier } from "@/types";
 const ALL_TIERS: (SponsorTier | "ALL")[] = ["ALL", "title", "platinum", "gold", "silver"];
 
 export default function SponsorsManagementPage() {
-  const { sponsors, toggleSponsorDeliverable, showToast } = useClubOps();
+  const { sponsors, toggleSponsorDeliverable, createSponsor, showToast } = useClubOps();
 
   const [selectedTier, setSelectedTier] = useState<SponsorTier | "ALL">("ALL");
   const [activeTab, setActiveTab] = useState<"deliverables" | "bounties" | "roi">("deliverables");
+
+  // Add Sponsor Modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newTier, setNewTier] = useState<SponsorTier>("gold");
+  const [newBooth, setNewBooth] = useState("Expo Floor, Booth 1");
+  const [newBountyTitle, setNewBountyTitle] = useState("");
+  const [newBountyPrize, setNewBountyPrize] = useState("$1,000 Cash");
+
+  const handleAddSponsor = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+
+    createSponsor({
+      name: newName.trim(),
+      tier: newTier,
+      booth_location: newBooth.trim(),
+      custom_bounty_title: newBountyTitle.trim() || undefined,
+      custom_bounty_prize: newBountyTitle.trim() ? newBountyPrize.trim() : undefined,
+    });
+
+    setIsAddModalOpen(false);
+    setNewName("");
+    setNewBountyTitle("");
+  };
 
   const filteredSponsors = useMemo(() => {
     if (selectedTier === "ALL") return sponsors;
@@ -98,6 +124,14 @@ export default function SponsorsManagementPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all shadow-lg shadow-indigo-600/30"
+          >
+            <Plus className="w-4 h-4" />
+            Add Sponsor Partner
+          </button>
+
           <Link
             href="/judging"
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 text-sm font-medium transition-all"
@@ -221,11 +255,30 @@ export default function SponsorsManagementPage() {
       {/* TAB 1: DELIVERABLES CHECKLIST */}
       {activeTab === "deliverables" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredSponsors.map((sponsor) => {
-            const completedCount = sponsor.deliverables.filter((d) => d.completed).length;
-            const pct = Math.round((completedCount / sponsor.deliverables.length) * 100);
+          {filteredSponsors.length === 0 ? (
+            <div className="col-span-full p-12 rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                <Handshake className="w-6 h-6" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="text-base font-bold text-white">No sponsor partners registered</h3>
+                <p className="text-xs text-slate-400">
+                  Add sponsor companies to track deliverables, booth setup, swag distribution, and workshops.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+              >
+                + Add Sponsor Partner
+              </button>
+            </div>
+          ) : (
+            filteredSponsors.map((sponsor) => {
+              const completedCount = sponsor.deliverables.filter((d) => d.completed).length;
+              const pct = Math.round((completedCount / sponsor.deliverables.length) * 100);
 
-            return (
+              return (
               <div
                 key={sponsor.id}
                 className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur-sm flex flex-col justify-between space-y-5"
@@ -335,7 +388,8 @@ export default function SponsorsManagementPage() {
                 )}
               </div>
             );
-          })}
+          })
+          )}
         </div>
       )}
 
@@ -347,50 +401,70 @@ export default function SponsorsManagementPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {sponsors
-              .filter((s) => s.custom_bounty_title)
-              .map((sponsor) => (
-                <div
-                  key={sponsor.id}
-                  className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col justify-between backdrop-blur-sm space-y-4"
+            {sponsors.filter((s) => s.custom_bounty_title).length === 0 ? (
+              <div className="col-span-full p-12 rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 flex items-center justify-center mx-auto">
+                  <Gift className="w-6 h-6" />
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h3 className="text-base font-bold text-white">No custom sponsor bounties posted</h3>
+                  <p className="text-xs text-slate-400">
+                    Add partner sponsors with custom bounty prize tracks to incentivize hackers on targeted technologies.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
                 >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span
-                        className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider border ${getTierBadge(
-                          sponsor.tier
-                        )}`}
-                      >
-                        {sponsor.name}
-                      </span>
-                      <span className="font-mono font-bold text-sm text-yellow-400 bg-yellow-400/10 px-2.5 py-0.5 rounded border border-yellow-400/30">
-                        {sponsor.custom_bounty_prize}
-                      </span>
+                  + Add Sponsor Partner
+                </button>
+              </div>
+            ) : (
+              sponsors
+                .filter((s) => s.custom_bounty_title)
+                .map((sponsor) => (
+                  <div
+                    key={sponsor.id}
+                    className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col justify-between backdrop-blur-sm space-y-4"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span
+                          className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider border ${getTierBadge(
+                            sponsor.tier
+                          )}`}
+                        >
+                          {sponsor.name}
+                        </span>
+                        <span className="font-mono font-bold text-sm text-yellow-400 bg-yellow-400/10 px-2.5 py-0.5 rounded border border-yellow-400/30">
+                          {sponsor.custom_bounty_prize}
+                        </span>
+                      </div>
+
+                      <h4 className="text-lg font-bold text-white mb-2">
+                        {sponsor.custom_bounty_title}
+                      </h4>
+
+                      <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                        Evaluated during Sunday morning Expo judging by sponsor representatives stationed at {sponsor.booth_location}.
+                      </p>
                     </div>
 
-                    <h4 className="text-lg font-bold text-white mb-2">
-                      {sponsor.custom_bounty_title}
-                    </h4>
-
-                    <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                      Evaluated during Sunday morning Expo judging by sponsor representatives stationed at {sponsor.booth_location}.
-                    </p>
+                    <div className="border-t border-slate-800 pt-3 flex items-center justify-between text-xs text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-indigo-400" />
+                        {sponsor.bounty_submissions_count || 0} Submissions
+                      </span>
+                      <Link
+                        href="/judging"
+                        className="text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1"
+                      >
+                        View in Expo →
+                      </Link>
+                    </div>
                   </div>
-
-                  <div className="border-t border-slate-800 pt-3 flex items-center justify-between text-xs text-slate-400">
-                    <span className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-indigo-400" />
-                      {sponsor.bounty_submissions_count || 0} Submissions
-                    </span>
-                    <Link
-                      href="/judging"
-                      className="text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1"
-                    >
-                      View in Expo →
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                ))
+            )}
           </div>
         </div>
       )}
@@ -421,49 +495,172 @@ export default function SponsorsManagementPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {sponsors.map((s) => {
-                  const completed = s.deliverables.filter((d) => d.completed).length;
-                  const total = s.deliverables.length;
-                  const isFull = completed === total;
+                {sponsors.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-500">
+                      <Handshake className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-300">No sponsor partners registered yet</p>
+                      <p className="text-xs text-slate-500 mt-1">Add sponsor partners to start monitoring engagement, deliverables, and ROI.</p>
+                      <button
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="mt-3 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                      >
+                        + Add Sponsor Partner
+                      </button>
+                    </td>
+                  </tr>
+                ) : (
+                  sponsors.map((s) => {
+                    const completed = s.deliverables.filter((d) => d.completed).length;
+                    const total = s.deliverables.length;
+                    const isFull = completed === total;
 
-                  return (
-                    <tr key={s.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-white">{s.name}</td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-semibold uppercase border ${getTierBadge(
-                            s.tier
-                          )}`}
-                        >
-                          {s.tier}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-slate-300">
-                        {s.tier === "title" ? "340+ hackers" : s.tier === "platinum" ? "210+ hackers" : "120+ hackers"}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-slate-300">
-                        {s.tier === "title" ? "94 hackers (Packed)" : s.tier === "platinum" ? "68 hackers" : "N/A"}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-yellow-400">
-                        {s.bounty_submissions_count ? `${s.bounty_submissions_count} teams` : "General Track"}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            isFull
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                          }`}
-                        >
-                          <CheckCircle2 className="w-3 h-3" />
-                          {completed}/{total} Deliverables
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr key={s.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-white">{s.name}</td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-semibold uppercase border ${getTierBadge(
+                              s.tier
+                            )}`}
+                          >
+                            {s.tier}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-300">
+                          {s.tier === "title" ? "340+ hackers" : s.tier === "platinum" ? "210+ hackers" : "120+ hackers"}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-300">
+                          {s.tier === "title" ? "94 hackers (Packed)" : s.tier === "platinum" ? "68 hackers" : "N/A"}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-yellow-400">
+                          {s.bounty_submissions_count ? `${s.bounty_submissions_count} teams` : "General Track"}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                              isFull
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            {completed}/{total} Deliverables
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD SPONSOR PARTNER */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl relative my-8 animate-in zoom-in-95">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-5">
+              <div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  Bit N Build 2026 Partner
+                </span>
+                <h3 className="text-xl font-bold text-white mt-1.5">Add Sponsor Partner</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Track deliverables, booth logistics, and custom prize bounties.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSponsor} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Company / Partner Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. GitHub, AWS, Polygon"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Partnership Tier *</label>
+                  <select
+                    value={newTier}
+                    onChange={(e) => setNewTier(e.target.value as SponsorTier)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500 capitalize"
+                  >
+                    <option value="title">Title Sponsor</option>
+                    <option value="platinum">Platinum</option>
+                    <option value="gold">Gold</option>
+                    <option value="silver">Silver</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Booth Location *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Main Foyer, Booth 2"
+                    value={newBooth}
+                    onChange={(e) => setNewBooth(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Custom Bounty Track Title (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Best Full-Stack Application Using API"
+                  value={newBountyTitle}
+                  onChange={(e) => setNewBountyTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {newBountyTitle && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Bounty Prize Award</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. $1,500 Cash + Cloud Credits"
+                    value={newBountyPrize}
+                    onChange={(e) => setNewBountyPrize(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30"
+                >
+                  Save Partner
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
