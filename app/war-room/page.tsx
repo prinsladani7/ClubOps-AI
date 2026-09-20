@@ -24,6 +24,9 @@ import {
   HelpCircle,
   RefreshCw,
   BellRing,
+  Award,
+  LifeBuoy,
+  Handshake,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +43,9 @@ export default function HackathonWarRoomPage() {
     showToast,
     getRunOfShowAnalysis,
     getHackathonRiskReport,
+    judgingTeams,
+    mentorTickets,
+    sponsors,
   } = useClubOps();
 
   const [currentHour, setCurrentHour] = useState(14);
@@ -108,6 +114,30 @@ export default function HackathonWarRoomPage() {
               <BellRing className="w-4 h-4" />
               <span>Broadcast to Hackers</span>
             </Button>
+
+            <Link
+              href="/judging"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 transition-all flex items-center gap-1.5"
+            >
+              <Award className="w-4 h-4 text-yellow-400" />
+              <span>Expo Judging</span>
+            </Link>
+
+            <Link
+              href="/mentors"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 transition-all flex items-center gap-1.5"
+            >
+              <LifeBuoy className="w-4 h-4 text-indigo-400" />
+              <span>HelpQ ({mentorTickets.filter((t) => t.status === "open").length})</span>
+            </Link>
+
+            <Link
+              href="/sponsors"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white transition-all flex items-center gap-1.5"
+            >
+              <Handshake className="w-4 h-4 text-emerald-400" />
+              <span>Sponsors & ROI</span>
+            </Link>
 
             <Link
               href="/algorithms"
