@@ -3,14 +3,17 @@ setlocal enabledelayedexpansion
 title ClubOps AI - Bit N Build Hackathon 2026 Operations
 cls
 
+:: Ensure script always executes in its own project directory
+cd /d "%~dp0"
+
 echo ======================================================================
 echo   CLUBOPS AI - BIT N BUILD HACKATHON 2026 COMMAND CENTER
-echo   Automated Event Operations & Multi-Tenant Intelligent Workspace
+echo   Automated Event Operations and Multi-Tenant Intelligent Workspace
 echo ======================================================================
 echo.
 
 :: [1/4] Environment Pre-flight Checks
-echo [1/4] Checking Node.js & npm runtime...
+echo [1/4] Checking Node.js and npm runtime...
 where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo.
@@ -51,9 +54,10 @@ echo   [OK] Environment configuration verified.
 :: [3/4] Verify Dependencies
 echo [3/4] Checking dependencies...
 if not exist "node_modules\" (
-    echo   Dependencies not installed. Running npm install (please wait)...
+    echo   Dependencies not installed. Running npm install, please wait...
     call npm install
     if %ERRORLEVEL% NEQ 0 (
+        echo.
         echo [ERROR] npm install encountered an issue.
         pause
         exit /b 1
@@ -61,24 +65,29 @@ if not exist "node_modules\" (
 )
 echo   [OK] Dependencies ready.
 
-:: [4/4] Launch Server & Browser
+:: [4/4] Launch Server and Browser
 echo [4/4] Starting ClubOps AI Operations Hub on http://localhost:3000 ...
 echo.
 echo ======================================================================
 echo   ACTIVE OPERATIONAL MODULES:
-echo    * Live War Room (Hour 14 of 36 | 450 Hackers | 112 Teams)
-echo    * 36-Hour Run-of-Show Master Planner
-echo    * Interactive Algorithmic Intelligence (CPM, Workload, Threat Radar)
-echo    * Task Delegation & Proof-of-Work Verification
-echo    * Fast 1-Click Persona Switcher (Admin, Organizer, Volunteer, Member)
+echo    * Live War Room: http://localhost:3000/war-room
+echo    * 36-Hour Run-of-Show Master Planner: http://localhost:3000/planning
+echo    * Algorithmic Intelligence: http://localhost:3000/algorithms
+echo    * Fast 1-Click Persona Switcher in Header
 echo ======================================================================
 echo.
-echo Opening browser automatically...
+echo Opening browser automatically in 3 seconds...
 echo Server running at: http://localhost:3000
 echo Press Ctrl+C in this window at any time to shut down the server.
 echo.
 
-:: Automatically open browser (Chrome, Edge, Brave, or System Default)
-start /b "" cmd /c "timeout /t 3 /nobreak >nul && (if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" http://localhost:3000) else if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (start "" "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" http://localhost:3000) else if exist "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" (start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" http://localhost:3000) else (start http://localhost:3000))"
+:: Automatically open browser (Chrome preferred, default browser fallback)
+start /b "" powershell -WindowStyle Hidden -Command "Start-Sleep -Seconds 3; if (Test-Path 'C:\Program Files\Google\Chrome\Application\chrome.exe') { Start-Process 'C:\Program Files\Google\Chrome\Application\chrome.exe' 'http://localhost:3000' } elseif (Test-Path 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe') { Start-Process 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe' 'http://localhost:3000' } elseif (Test-Path \"$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe\") { Start-Process \"$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe\" 'http://localhost:3000' } else { Start-Process 'http://localhost:3000' }"
 
-npm run dev
+call npm run dev
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [NOTICE] Server process exited with code %ERRORLEVEL%.
+    pause
+)
