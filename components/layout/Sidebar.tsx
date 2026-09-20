@@ -31,6 +31,9 @@ import {
   User as UserIcon,
   Flame,
   Activity,
+  Award,
+  LifeBuoy,
+  Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
@@ -63,6 +66,21 @@ export function Sidebar() {
           badge: "36H LIVE",
           badgeVariant: "destructive",
         },
+        {
+          label: "Judging Expo",
+          href: "/judging",
+          icon: Award,
+          badge: "GAVEL",
+          badgeVariant: "ai",
+        },
+        {
+          label: "Mentor HelpQ",
+          href: "/mentors",
+          icon: LifeBuoy,
+          badge: "DISPATCH",
+          badgeVariant: "primary",
+        },
+        { label: "Sponsors & ROI", href: "/sponsors", icon: Handshake },
         { label: "Algorithm Intelligence", href: "/algorithms", icon: Activity },
         { label: "Run-of-Show Planner", href: "/planning", icon: Clock },
         { label: "Projects Portfolio", href: "/admin/projects", icon: FolderKanban },
@@ -100,6 +118,21 @@ export function Sidebar() {
           badge: "36H LIVE",
           badgeVariant: "destructive",
         },
+        {
+          label: "Judging Expo",
+          href: "/judging",
+          icon: Award,
+          badge: "GAVEL",
+          badgeVariant: "ai",
+        },
+        {
+          label: "Mentor HelpQ",
+          href: "/mentors",
+          icon: LifeBuoy,
+          badge: "DISPATCH",
+          badgeVariant: "primary",
+        },
+        { label: "Sponsors & ROI", href: "/sponsors", icon: Handshake },
         { label: "Algorithm Intelligence", href: "/algorithms", icon: Activity },
         { label: "Run-of-Show Planner", href: "/planning", icon: Clock },
         { label: "My Projects", href: "/organizer/projects", icon: FolderKanban },
@@ -137,6 +170,14 @@ export function Sidebar() {
           badgeVariant: "destructive",
         },
         {
+          label: "Mentor HelpQ",
+          href: "/mentors",
+          icon: LifeBuoy,
+          badge: "DISPATCH",
+          badgeVariant: "primary",
+        },
+        { label: "Judging Expo", href: "/judging", icon: Award },
+        {
           label: "My Tasks",
           href: "/volunteer/tasks",
           icon: CheckSquare,
@@ -167,6 +208,9 @@ export function Sidebar() {
     return [
       { label: "Role Selection", href: "/auth/role", icon: Shield },
       { label: "Hackathon War Room", href: "/war-room", icon: Flame },
+      { label: "Judging Expo", href: "/judging", icon: Award },
+      { label: "Mentor HelpQ", href: "/mentors", icon: LifeBuoy },
+      { label: "Sponsors & ROI", href: "/sponsors", icon: Handshake },
       { label: "36h Schedule", href: "/planning", icon: Clock },
       { label: "Event Overview", href: "/events", icon: CalendarDays },
       { label: "Calendar", href: "/calendar", icon: Calendar },

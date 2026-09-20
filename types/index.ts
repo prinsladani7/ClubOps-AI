@@ -635,3 +635,96 @@ export interface AIMessage {
     similarity: number;
   }[];
 }
+
+// -------------------------------------------------------------
+// BIT N BUILD HACKATHON 2026: EXPO JUDGING & GAVEL NORMALIZATION
+// -------------------------------------------------------------
+export type HackathonTrack = "AI & Agents" | "Web3 & DeFi" | "IoT & Robotics" | "Open Innovation";
+
+export interface JudgingScore {
+  judge_id: string;
+  judge_name: string;
+  technical_depth: number; // 1-10 (weight 30%)
+  innovation: number;      // 1-10 (weight 25%)
+  impact_viability: number;// 1-10 (weight 25%)
+  demo_presentation: number;// 1-10 (weight 20%)
+  feedback_notes?: string;
+  submitted_at: string;
+}
+
+export interface JudgingTeam {
+  id: string;
+  team_name: string;
+  project_title: string;
+  track: HackathonTrack;
+  table_location: string;
+  member_count: number;
+  github_url: string;
+  demo_url?: string;
+  scores: JudgingScore[];
+  is_disqualified?: boolean;
+}
+
+export interface JudgingLeaderboardEntry {
+  rank: number;
+  team_id: string;
+  team_name: string;
+  project_title: string;
+  track: HackathonTrack;
+  table_location: string;
+  raw_average: number;
+  normalized_score: number; // 0-100 after Z-score normalization
+  scores_count: number;
+  medal?: "gold" | "silver" | "bronze";
+}
+
+// -------------------------------------------------------------
+// BIT N BUILD HACKATHON 2026: REAL-TIME HELPQ MENTOR DISPATCH
+// -------------------------------------------------------------
+export type MentorTicketStatus = "open" | "claimed" | "resolved";
+export type MentorTicketPriority = "low" | "medium" | "high" | "urgent";
+
+export interface MentorTicket {
+  id: string;
+  team_id: string;
+  team_name: string;
+  table_location: string;
+  track: HackathonTrack;
+  tech_stack: string[];
+  issue_summary: string;
+  priority: MentorTicketPriority;
+  status: MentorTicketStatus;
+  requested_at: string;
+  claimed_at?: string;
+  claimed_by_mentor_id?: string;
+  claimed_by_mentor_name?: string;
+  resolved_at?: string;
+  resolution_notes?: string;
+}
+
+// -------------------------------------------------------------
+// BIT N BUILD HACKATHON 2026: SPONSOR DELIVERABLES & ROI TRACKING
+// -------------------------------------------------------------
+export type SponsorTier = "title" | "platinum" | "gold" | "silver";
+
+export interface SponsorDeliverableItem {
+  id: string;
+  title: string;
+  category: "booth" | "workshop" | "swag" | "mentorship" | "bounty";
+  due_time?: string;
+  completed: boolean;
+  notes?: string;
+}
+
+export interface SponsorPartner {
+  id: string;
+  name: string;
+  tier: SponsorTier;
+  logo_url: string;
+  booth_location: string;
+  custom_bounty_title?: string;
+  custom_bounty_prize?: string;
+  bounty_submissions_count?: number;
+  deliverables: SponsorDeliverableItem[];
+}
+

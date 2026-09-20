@@ -32,6 +32,12 @@ import {
   AITeamRecommendation,
   AIProjectBreakdownResult,
   AIWorkloadRebalanceSuggestion,
+  JudgingTeam,
+  JudgingScore,
+  JudgingLeaderboardEntry,
+  MentorTicket,
+  SponsorPartner,
+  HackathonTrack,
 } from "@/types";
 import { db } from "@/lib/db";
 import { aiProvider } from "@/lib/ai/provider";
@@ -147,6 +153,17 @@ interface ClubOpsContextType {
   getHackathonRiskReport: () => HackathonRiskReport;
   getRunOfShowAnalysis: (currentHour?: number) => RunOfShowReport;
   reviewTaskEvidence: (taskId: string, evidenceId: string, approved: boolean, notes?: string) => boolean;
+
+  // Bit N Build 2026 Hackathon Operations: Judging Expo, HelpQ, Sponsors
+  judgingTeams: JudgingTeam[];
+  mentorTickets: MentorTicket[];
+  sponsors: SponsorPartner[];
+  submitJudgeScore: (teamId: string, score: Omit<JudgingScore, "submitted_at">) => void;
+  getNormalizedLeaderboard: (track?: HackathonTrack) => JudgingLeaderboardEntry[];
+  createMentorTicket: (data: { team_name: string; table_location: string; track: HackathonTrack; tech_stack: string[]; issue_summary: string; priority?: "low" | "medium" | "high" | "urgent" }) => MentorTicket;
+  claimMentorTicket: (ticketId: string, mentorId: string, mentorName: string) => void;
+  resolveMentorTicket: (ticketId: string, resolutionNotes?: string) => void;
+  toggleSponsorDeliverable: (sponsorId: string, deliverableId: string) => void;
 }
 
 const ClubOpsContext = createContext<ClubOpsContextType | undefined>(undefined);
@@ -201,6 +218,9 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
   const [teams, setTeams] = useState<Team[]>(() => db.getTeams());
   const [roleAssignments, setRoleAssignments] = useState<RoleAssignment[]>(() => db.getRoleAssignments());
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>(() => db.getPermissionRequests());
+  const [judgingTeams, setJudgingTeams] = useState<JudgingTeam[]>(() => db.getJudgingTeams());
+  const [mentorTickets, setMentorTickets] = useState<MentorTicket[]>(() => db.getMentorTickets());
+  const [sponsors, setSponsors] = useState<SponsorPartner[]>(() => db.getSponsors());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -228,6 +248,9 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     setTeams(db.getTeams());
     setRoleAssignments(db.getRoleAssignments());
     setPermissionRequests(db.getPermissionRequests());
+    setJudgingTeams(db.getJudgingTeams());
+    setMentorTickets(db.getMentorTickets());
+    setSponsors(db.getSponsors());
   }, []);
 
   const switchUser = useCallback((userId: string) => {
@@ -690,6 +713,48 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     return success;
   }, [refreshAll, showToast]);
 
+  const submitJudgeScore = useCallback((teamId: string, score: Omit<JudgingScore, "submitted_at">) => {
+    db.submitJudgeScore(teamId, score);
+    refreshAll();
+    showToast(`Evaluation submitted for team by ${score.judge_name}. Leaderboard updated.`);
+  }, [refreshAll, showToast]);
+
+  const getNormalizedLeaderboard = useCallback((track?: HackathonTrack) => {
+    return db.getNormalizedLeaderboard(track);
+  }, []);
+
+  const createMentorTicket = useCallback((data: {
+    team_name: string;
+    table_location: string;
+    track: HackathonTrack;
+    tech_stack: string[];
+    issue_summary: string;
+    priority?: "low" | "medium" | "high" | "urgent";
+  }) => {
+    const ticket = db.createMentorTicket(data);
+    refreshAll();
+    showToast(`Mentor ticket #${ticket.id.slice(-4)} queued at ${ticket.table_location}.`);
+    return ticket;
+  }, [refreshAll, showToast]);
+
+  const claimMentorTicket = useCallback((ticketId: string, mentorId: string, mentorName: string) => {
+    db.claimMentorTicket(ticketId, mentorId, mentorName);
+    refreshAll();
+    showToast(`Ticket claimed by ${mentorName}. Dispatched to table!`);
+  }, [refreshAll, showToast]);
+
+  const resolveMentorTicket = useCallback((ticketId: string, resolutionNotes?: string) => {
+    db.resolveMentorTicket(ticketId, resolutionNotes);
+    refreshAll();
+    showToast(`Ticket resolved and logged in HelpQ archive.`);
+  }, [refreshAll, showToast]);
+
+  const toggleSponsorDeliverable = useCallback((sponsorId: string, deliverableId: string) => {
+    db.toggleSponsorDeliverable(sponsorId, deliverableId);
+    refreshAll();
+    showToast(`Sponsor deliverable status updated.`);
+  }, [refreshAll, showToast]);
+
   return (
     <ClubOpsContext.Provider
       value={{
@@ -788,6 +853,15 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
         getHackathonRiskReport,
         getRunOfShowAnalysis,
         reviewTaskEvidence,
+        judgingTeams,
+        mentorTickets,
+        sponsors,
+        submitJudgeScore,
+        getNormalizedLeaderboard,
+        createMentorTicket,
+        claimMentorTicket,
+        resolveMentorTicket,
+        toggleSponsorDeliverable,
       }}
     >
       {children}

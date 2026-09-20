@@ -15,9 +15,14 @@ import { RequestAccessModal } from "@/components/rbac/RequestAccessModal";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, isHydrated, currentUser, roleAssignments, toastMessage } = useClubOps();
+  const { isAuthenticated, isHydrated, currentUser, roleAssignments, toastMessage, announcements } = useClubOps();
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [dismissedBannerId, setDismissedBannerId] = useState<string | null>(null);
   const loggedRef = useRef<string | null>(null);
+
+  const activeAnnouncement = announcements
+    ?.filter((a) => a.status === "published")
+    ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
   const isAuthPage = pathname === "/login" || pathname.startsWith("/auth");
 
@@ -102,6 +107,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Sidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <TopBar />
+            {activeAnnouncement && activeAnnouncement.id !== dismissedBannerId && (
+              <div className="bg-gradient-to-r from-amber-500/15 via-indigo-500/15 to-cyan-500/15 border-b border-indigo-500/30 px-5 py-2.5 text-xs flex items-center justify-between backdrop-blur-md shadow-sm">
+                <div className="flex items-center gap-2.5 max-w-4xl truncate">
+                  <span className="flex items-center gap-1.5 font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 uppercase text-[10px] tracking-wider shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                    Live Floor Broadcast
+                  </span>
+                  <span className="font-semibold text-white truncate">{activeAnnouncement.title}:</span>
+                  <span className="text-slate-300 truncate">{activeAnnouncement.body}</span>
+                </div>
+                <button
+                  onClick={() => setDismissedBannerId(activeAnnouncement.id)}
+                  className="text-slate-400 hover:text-white px-2 py-0.5 rounded text-xs ml-3 transition-colors hover:bg-slate-800"
+                  title="Dismiss banner"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <main className="flex-1 p-8 overflow-y-auto max-w-7xl w-full mx-auto">
               {!isAllowed ? (

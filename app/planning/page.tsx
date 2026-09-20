@@ -16,6 +16,8 @@ import {
   ChevronRight,
   ShieldCheck,
   Flame,
+  Printer,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +46,44 @@ export default function HackathonPlanningPage() {
     (slot) => selectedCategory === "ALL" || slot.category === selectedCategory
   );
 
+  const handleExportCSV = () => {
+    const headers = [
+      "Slot ID",
+      "Title",
+      "Hour Mark (H+)",
+      "Clock Time",
+      "Venue",
+      "Category",
+      "Duration (Min)",
+      "Lead Committee",
+      "Status",
+    ];
+
+    const rows = BIT_N_BUILD_36H_TIMELINE.map((slot) => [
+      slot.id,
+      `"${slot.title.replace(/"/g, '""')}"`,
+      `H+${slot.hourMark}`,
+      `"${slot.clockTime}"`,
+      `"${slot.venue}"`,
+      slot.category,
+      slot.durationMinutes,
+      `"${slot.leadCommittee}"`,
+      slot.status,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "bit_n_build_36h_run_of_show.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Run-of-Show Master CSV exported successfully!");
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in">
       {/* Top Header */}
@@ -64,7 +104,27 @@ export default function HackathonPlanningPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.print();
+              }
+            }}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5"
+          >
+            <Printer className="w-4 h-4 text-emerald-400" />
+            <span>Print Sheet</span>
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>Export CSV</span>
+          </button>
+
           <Link
             href="/war-room"
             className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white shadow-aiGlow flex items-center gap-2"

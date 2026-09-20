@@ -424,13 +424,27 @@ export function canAccessRoute(
       "/war-room",
       "/planning",
       "/algorithms",
+      "/judging",
+      "/mentors",
+      "/sponsors",
     ];
     return allowedForVolunteer.some((route) => pathname === route || pathname.startsWith(route + "/"));
   }
 
   // Member routes (Public only)
   if (effectiveRole === "member") {
-    const allowedForMember = ["/", "/events", "/calendar", "/announcements", "/login", "/war-room", "/planning"];
+    const allowedForMember = [
+      "/",
+      "/events",
+      "/calendar",
+      "/announcements",
+      "/login",
+      "/war-room",
+      "/planning",
+      "/judging",
+      "/mentors",
+      "/sponsors",
+    ];
     return allowedForMember.some((route) => pathname === route || pathname.startsWith(route + "/"));
   }
 

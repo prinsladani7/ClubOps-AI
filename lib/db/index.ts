@@ -35,6 +35,12 @@ import {
   AIWorkloadRebalanceSuggestion,
   TaskDelegationStep,
   TaskAssignmentHistory,
+  JudgingTeam,
+  JudgingScore,
+  JudgingLeaderboardEntry,
+  MentorTicket,
+  SponsorPartner,
+  HackathonTrack,
 } from "@/types";
 import {
   SEED_USERS,
@@ -62,12 +68,16 @@ import {
   SEED_TEAM_MEMBERS,
   SEED_ROLE_ASSIGNMENTS,
   SEED_PERMISSION_REQUESTS,
+  SEED_JUDGING_TEAMS,
+  SEED_MENTOR_TICKETS,
+  SEED_SPONSORS,
 } from "./mock-store";
 import { can, PermissionContext } from "@/lib/permissions";
 import { CriticalPathEngine, CPMTask, CPMSimulationResult, DelayImpactResult } from "@/lib/algorithms/cpm";
 import { WorkloadOptimizer, OptimizerVolunteer, OptimizerTask, OptimizationSummary } from "@/lib/algorithms/workload-optimizer";
 import { RiskPredictor, HackathonRiskReport } from "@/lib/algorithms/risk-predictor";
 import { RunOfShowEngine, RunOfShowReport, BIT_N_BUILD_36H_TIMELINE } from "@/lib/algorithms/run-of-show";
+import { generateNormalizedLeaderboard, computeWeightedScore } from "@/lib/algorithms/judging-normalizer";
 
 // Reactive in-memory state initialized from seed data
 class DatabaseStore {
@@ -96,6 +106,9 @@ class DatabaseStore {
   private announcements: Announcement[] = [...SEED_ANNOUNCEMENTS];
   private notifications: Notification[] = [...SEED_NOTIFICATIONS];
   private auditLogs: AuditLog[] = [...SEED_AUDIT_LOGS];
+  private judgingTeams: JudgingTeam[] = [...SEED_JUDGING_TEAMS];
+  private mentorTickets: MentorTicket[] = [...SEED_MENTOR_TICKETS];
+  private sponsors: SponsorPartner[] = [...SEED_SPONSORS];
   private pendingToolCalls: AIToolCall[] = [];
   private currentUserId: string = "usr-prins"; // default persona: Prins Patel (Admin)
 
@@ -3033,6 +3046,178 @@ class DatabaseStore {
       entity_type: "task",
       entity_id: taskId,
       metadata_json: { evidenceId, approved, reviewerNotes },
+    });
+
+    return true;
+  }
+
+  // =============================================================
+  // BIT N BUILD 2026: JUDGING EXPO & GAVEL NORMALIZATION
+  // =============================================================
+  public getJudgingTeams(): JudgingTeam[] {
+    return [...this.judgingTeams];
+  }
+
+  public submitJudgeScore(
+    teamId: string,
+    score: Omit<JudgingScore, "submitted_at">
+  ): JudgingTeam {
+    const team = this.judgingTeams.find((t) => t.id === teamId);
+    if (!team) throw new Error(`Judging team ${teamId} not found`);
+
+    const fullScore: JudgingScore = {
+      ...score,
+      submitted_at: new Date().toISOString(),
+    };
+
+    // Replace if judge already scored this team, otherwise push
+    const existingIdx = team.scores.findIndex((s) => s.judge_id === score.judge_id);
+    if (existingIdx >= 0) {
+      team.scores[existingIdx] = fullScore;
+    } else {
+      team.scores.push(fullScore);
+    }
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "JUDGE_SCORE_SUBMITTED",
+      entity_type: "judging_team",
+      entity_id: teamId,
+      metadata_json: {
+        teamName: team.team_name,
+        judgeName: score.judge_name,
+        weightedScore: computeWeightedScore(fullScore),
+      },
+    });
+
+    return { ...team };
+  }
+
+  public getNormalizedLeaderboard(track?: HackathonTrack): JudgingLeaderboardEntry[] {
+    return generateNormalizedLeaderboard(this.judgingTeams, track);
+  }
+
+  // =============================================================
+  // BIT N BUILD 2026: HELPQ MENTOR DISPATCH QUEUE
+  // =============================================================
+  public getMentorTickets(): MentorTicket[] {
+    return [...this.mentorTickets];
+  }
+
+  public createMentorTicket(data: {
+    team_name: string;
+    table_location: string;
+    track: HackathonTrack;
+    tech_stack: string[];
+    issue_summary: string;
+    priority?: "low" | "medium" | "high" | "urgent";
+  }): MentorTicket {
+    const id = `ticket-${Date.now().toString().slice(-4)}`;
+    const newTicket: MentorTicket = {
+      id,
+      team_id: `team-hacker-${Date.now().toString().slice(-3)}`,
+      team_name: data.team_name,
+      table_location: data.table_location,
+      track: data.track,
+      tech_stack: data.tech_stack,
+      issue_summary: data.issue_summary,
+      priority: data.priority || "medium",
+      status: "open",
+      requested_at: new Date().toISOString(),
+    };
+
+    this.mentorTickets.unshift(newTicket);
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "MENTOR_TICKET_CREATED",
+      entity_type: "mentor_ticket",
+      entity_id: id,
+      metadata_json: {
+        teamName: data.team_name,
+        tableLocation: data.table_location,
+        track: data.track,
+      },
+    });
+
+    return newTicket;
+  }
+
+  public claimMentorTicket(ticketId: string, mentorId: string, mentorName: string): MentorTicket {
+    const ticket = this.mentorTickets.find((t) => t.id === ticketId);
+    if (!ticket) throw new Error(`Ticket ${ticketId} not found`);
+
+    ticket.status = "claimed";
+    ticket.claimed_at = new Date().toISOString();
+    ticket.claimed_by_mentor_id = mentorId;
+    ticket.claimed_by_mentor_name = mentorName;
+
+    this.addAuditLog({
+      actor_user_id: mentorId,
+      actor_type: "user",
+      action: "MENTOR_TICKET_CLAIMED",
+      entity_type: "mentor_ticket",
+      entity_id: ticketId,
+      metadata_json: {
+        mentorName,
+        teamName: ticket.team_name,
+      },
+    });
+
+    return { ...ticket };
+  }
+
+  public resolveMentorTicket(ticketId: string, resolutionNotes?: string): MentorTicket {
+    const ticket = this.mentorTickets.find((t) => t.id === ticketId);
+    if (!ticket) throw new Error(`Ticket ${ticketId} not found`);
+
+    ticket.status = "resolved";
+    ticket.resolved_at = new Date().toISOString();
+    ticket.resolution_notes = resolutionNotes || "Resolved with team.";
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "MENTOR_TICKET_RESOLVED",
+      entity_type: "mentor_ticket",
+      entity_id: ticketId,
+      metadata_json: {
+        teamName: ticket.team_name,
+        notes: resolutionNotes,
+      },
+    });
+
+    return { ...ticket };
+  }
+
+  // =============================================================
+  // BIT N BUILD 2026: SPONSOR DELIVERABLE & ROI TRACKING
+  // =============================================================
+  public getSponsors(): SponsorPartner[] {
+    return [...this.sponsors];
+  }
+
+  public toggleSponsorDeliverable(sponsorId: string, deliverableId: string): boolean {
+    const sponsor = this.sponsors.find((s) => s.id === sponsorId);
+    if (!sponsor) return false;
+
+    const item = sponsor.deliverables.find((d) => d.id === deliverableId);
+    if (!item) return false;
+
+    item.completed = !item.completed;
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "SPONSOR_DELIVERABLE_UPDATED",
+      entity_type: "sponsor",
+      entity_id: sponsorId,
+      metadata_json: {
+        deliverableTitle: item.title,
+        completed: item.completed,
+      },
     });
 
     return true;
