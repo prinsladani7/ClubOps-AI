@@ -13,10 +13,19 @@ import {
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
+import { resolveEntityLabel, formatActionNarrative } from "@/lib/utils/formatters";
 
 export default function OrganizerHistoryPage() {
-  const { currentUser, auditLogs, projects } = useClubOps();
+  const { currentUser, auditLogs, projects, tasks, users, teams, event } = useClubOps();
   const [search, setSearch] = useState("");
+
+  const dbHelper = {
+    getTaskById: (id: string) => tasks.find((t) => t.id === id),
+    getUserById: (id: string) => users.find((u) => u.id === id),
+    getTeamById: (id: string) => teams.find((t) => t.id === id),
+    getProjectById: (id: string) => projects.find((p) => p.id === id),
+    getEvent: () => event,
+  };
 
   const myProjects = projects.filter(
     (p) => p.organizer_id === currentUser.id || (p.organizers && p.organizers.includes(currentUser.id))
@@ -81,14 +90,24 @@ export default function OrganizerHistoryPage() {
         <div className="divide-y divide-slate-800/60">
           {filteredLogs.map((log) => (
             <div key={log.id} className="py-3 flex items-center justify-between text-xs gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <Badge variant="outline" className="text-[10px] font-mono border-slate-700 text-slate-300 uppercase">
+              <div className="flex items-center gap-3 min-w-0 flex-wrap sm:flex-nowrap">
+                <Badge variant="outline" className="text-[10px] font-mono border-slate-700 text-slate-300 uppercase flex-shrink-0">
                   {log.action.replace(/_/g, " ")}
                 </Badge>
-                <span className="text-white font-semibold truncate">{log.actor?.name || log.actor_user_id}</span>
-                <span className="text-slate-400 font-mono truncate hidden sm:inline">
-                  [{log.entity_type}: {log.entity_id}]
-                </span>
+                <span className="text-white font-semibold truncate flex-shrink-0">{log.actor?.name || log.actor_user_id}</span>
+                {(() => {
+                  const resolved = resolveEntityLabel(log.entity_type, log.entity_id, dbHelper);
+                  return (
+                    <div className="flex items-center gap-1.5 text-slate-300 truncate">
+                      <span className="text-[9px] uppercase font-mono px-1 rounded bg-slate-800 text-slate-400">
+                        {resolved.typeLabel}
+                      </span>
+                      <span className="text-cyan-300 font-medium truncate">
+                        {resolved.name}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <span className="text-[11px] text-slate-500 font-mono flex-shrink-0">

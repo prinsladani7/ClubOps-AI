@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { can } from "@/lib/permissions";
+import { requirePermission } from "@/lib/auth/guard";
 
 /**
  * GET /api/algorithms?type=cpm|rebalance|risk|run_of_show&delayTaskId=...&delayHours=...
@@ -91,8 +91,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "apply_rebalance") {
+      const guard = requirePermission(req, "task:assign");
+      if (!guard.authorized) {
+        return guard.response!;
+      }
+
       const { rebalanceActions } = body;
-      const appliedCount = 0;
       if (Array.isArray(rebalanceActions)) {
         rebalanceActions.forEach((act: any) => {
           if (act.taskId && act.toVolunteerId) {

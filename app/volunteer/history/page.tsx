@@ -14,10 +14,18 @@ import {
 } from "lucide-react";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
+import { resolveEntityLabel, formatActionNarrative } from "@/lib/utils/formatters";
 
 export default function VolunteerHistoryPage() {
-  const { currentUser, tasks, auditLogs } = useClubOps();
+  const { currentUser, tasks, auditLogs, users, teams, event } = useClubOps();
   const [search, setSearch] = useState("");
+
+  const dbHelper = {
+    getTaskById: (id: string) => tasks.find((t) => t.id === id),
+    getUserById: (id: string) => users.find((u) => u.id === id),
+    getTeamById: (id: string) => teams.find((t) => t.id === id),
+    getEvent: () => event,
+  };
 
   const completedTasks = tasks.filter(
     (t) => t.owner_id === currentUser.id && (t.status === "completed" || t.status === "done")
@@ -115,24 +123,35 @@ export default function VolunteerHistoryPage() {
           </div>
 
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {ownAuditLogs.map((log) => (
-              <div
-                key={log.id}
-                className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 text-xs space-y-1"
-              >
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-[9px] font-mono uppercase border-slate-700">
-                    {log.action.replace(/_/g, " ")}
-                  </Badge>
-                  <span className="text-[10px] text-slate-500 font-mono">
-                    {new Date(log.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
+            {ownAuditLogs.map((log) => {
+              const resolved = resolveEntityLabel(log.entity_type, log.entity_id, dbHelper);
+              return (
+                <div
+                  key={log.id}
+                  className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 text-xs space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className="text-[9px] font-mono uppercase border-slate-700">
+                      {log.action.replace(/_/g, " ")}
+                    </Badge>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {new Date(log.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] uppercase font-mono px-1 rounded bg-slate-800 text-slate-400">
+                      {resolved.typeLabel}
+                    </span>
+                    <span className="text-xs text-white font-medium truncate">
+                      {resolved.name}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    {formatActionNarrative(log.action, log.metadata_json)}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400 font-mono">
-                  {log.entity_type}: {log.entity_id}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

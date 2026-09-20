@@ -68,6 +68,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "projectMemberId is required" }, { status: 400 });
     }
 
+    const guard = requirePermission(request, "volunteer:remove");
+    if (!guard.authorized) {
+      return guard.response!;
+    }
+
     // Call db.removeProjectMember which handles permission check, soft deactivation, task impact calculation & audit logging
     const result = db.removeProjectMember(projectMemberId, reassignmentUserId);
     return NextResponse.json(result);

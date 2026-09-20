@@ -17,22 +17,31 @@ import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatTime } from "@/lib/utils";
+import { resolveEntityLabel, formatActionNarrative } from "@/lib/utils/formatters";
 
 export default function AuditPage() {
-  const { auditLogs, event } = useClubOps();
+  const { auditLogs, event, tasks, users, teams } = useClubOps();
 
   const [filterActorType, setFilterActorType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const dbHelper = {
+    getTaskById: (id: string) => tasks.find((t) => t.id === id),
+    getUserById: (id: string) => users.find((u) => u.id === id),
+    getTeamById: (id: string) => teams.find((t) => t.id === id),
+    getEvent: () => event,
+  };
 
   const filteredLogs = auditLogs.filter((log) => {
     if (filterActorType !== "all" && log.actor_type !== filterActorType) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const narrative = formatActionNarrative(log.action, log.metadata_json).toLowerCase();
       return (
         log.action.toLowerCase().includes(q) ||
+        narrative.includes(q) ||
         log.actor?.name.toLowerCase().includes(q) ||
-        log.entity_type.toLowerCase().includes(q) ||
-        JSON.stringify(log.metadata_json).toLowerCase().includes(q)
+        log.entity_type.toLowerCase().includes(q)
       );
     }
     return true;
@@ -117,7 +126,7 @@ export default function AuditPage() {
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-white">
                           {log.actor?.name || (isAI ? "ClubOps AI Copilot" : "System")}
                         </span>
@@ -127,27 +136,46 @@ export default function AuditPage() {
                         >
                           {log.actor_type.toUpperCase()}
                         </Badge>
-                        <span className="text-xs font-mono font-semibold text-indigo-300">
-                          {log.action}
+                        <span className="text-xs font-medium text-slate-200">
+                          {formatActionNarrative(log.action, log.metadata_json)}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Target Entity: <span className="font-mono text-cyan-400">{log.entity_type}</span> (ID: {log.entity_id})
-                      </p>
+                      
+                      {(() => {
+                        const resolved = resolveEntityLabel(log.entity_type, log.entity_id, dbHelper);
+                        return (
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                              {resolved.typeLabel}
+                            </span>
+                            <span className="text-xs text-cyan-300 font-medium">
+                              {resolved.name}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <span className="text-[11px] font-mono text-slate-400">
                       {formatDate(log.created_at)} at {formatTime(log.created_at)}
                     </span>
                   </div>
                 </div>
 
-                {/* Metadata JSON Box */}
+                {/* Human-friendly operational payload & optional technical drawer */}
                 {log.metadata_json && Object.keys(log.metadata_json).length > 0 && (
-                  <div className="ml-10 p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-300 overflow-x-auto">
-                    {JSON.stringify(log.metadata_json, null, 2)}
+                  <div className="ml-10 space-y-1.5">
+                    {/* Collapsible Technical Details (Hidden by default for non-developers) */}
+                    <details className="text-[10px] text-slate-500 group">
+                      <summary className="cursor-pointer hover:text-slate-400 select-none transition-colors">
+                        View raw event payload
+                      </summary>
+                      <div className="mt-1.5 p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 font-mono text-slate-400 overflow-x-auto max-h-40">
+                        {JSON.stringify(log.metadata_json, null, 2)}
+                      </div>
+                    </details>
                   </div>
                 )}
               </div>

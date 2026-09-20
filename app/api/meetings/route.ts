@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requirePermission } from "@/lib/auth/guard";
 
 export async function GET() {
   const meetings = db.getMeetings();
@@ -12,17 +13,25 @@ export async function POST(request: Request) {
     const { action, meetingId, transcriptText, actionItemIds } = body;
 
     if (action === "extract" && meetingId && transcriptText) {
+      const guard = requirePermission(request, "task:create");
+      if (!guard.authorized) {
+        return guard.response!;
+      }
       const items = db.extractActionItemsFromTranscript(meetingId, transcriptText);
       return NextResponse.json({ actionItems: items });
     }
 
     if (action === "approve" && actionItemIds && Array.isArray(actionItemIds)) {
+      const guard = requirePermission(request, "task:create");
+      if (!guard.authorized) {
+        return guard.response!;
+      }
       const tasks = db.approveActionItems(actionItemIds);
       return NextResponse.json({ createdTasks: tasks });
     }
 
     return NextResponse.json({ error: "Invalid meeting action specification" }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to process meeting action" }, { status: 500 });
   }
 }

@@ -22,6 +22,7 @@ import {
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { resolveEntityLabel } from "@/lib/utils/formatters";
 
 export default function AdminDashboardPage() {
   const {
@@ -29,12 +30,22 @@ export default function AdminDashboardPage() {
     users,
     volunteers,
     tasks,
+    teams,
+    event,
     risks,
     auditLogs,
     createProject,
     currentUser,
     showToast,
   } = useClubOps();
+
+  const dbHelper = {
+    getTaskById: (id: string) => tasks.find((t) => t.id === id),
+    getUserById: (id: string) => users.find((u) => u.id === id),
+    getTeamById: (id: string) => teams.find((t) => t.id === id),
+    getProjectById: (id: string) => projects.find((p) => p.id === id),
+    getEvent: () => event,
+  };
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProjName, setNewProjName] = useState("");
@@ -242,24 +253,27 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="divide-y divide-slate-800/60 space-y-1 overflow-hidden">
-            {auditLogs.slice(0, 6).map((log) => (
-              <div key={log.id} className="py-2.5 flex items-center justify-between text-xs gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Badge variant="outline" className="text-[10px] font-mono border-slate-700 text-slate-300 uppercase">
-                    {log.action.replace(/_/g, " ")}
-                  </Badge>
-                  <span className="text-slate-300 font-semibold truncate">
-                    {log.actor?.name || log.actor_user_id}
-                  </span>
-                  <span className="text-slate-500 truncate hidden sm:inline font-mono">
-                    ({log.entity_type}: {log.entity_id})
+            {auditLogs.slice(0, 6).map((log) => {
+              const resolved = resolveEntityLabel(log.entity_type, log.entity_id, dbHelper);
+              return (
+                <div key={log.id} className="py-2.5 flex items-center justify-between text-xs gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Badge variant="outline" className="text-[10px] font-mono border-slate-700 text-slate-300 uppercase flex-shrink-0">
+                      {log.action.replace(/_/g, " ")}
+                    </Badge>
+                    <span className="text-slate-300 font-semibold truncate">
+                      {log.actor?.name || log.actor_user_id}
+                    </span>
+                    <span className="text-slate-400 truncate hidden sm:inline text-[11px]">
+                      &bull; {resolved.name}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono flex-shrink-0">
+                    {new Date(log.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-400 font-mono flex-shrink-0">
-                  {new Date(log.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

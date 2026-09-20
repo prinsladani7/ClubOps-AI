@@ -186,7 +186,7 @@ export default function AlgorithmIntelligencePage() {
                     : `✅ DELAY BUFFER ABSORBED: 0 Hours Project Delay (Total float absorbed)`}
                 </p>
                 <p className="text-[11px] text-slate-300">
-                  Delaying {delaySimulation.delayedTaskId} by {delaySimulation.delayHours} hours affects {delaySimulation.affectedTasks.length} downstream deliverables.
+                  Delaying &ldquo;{tasks.find((t) => t.id === delaySimulation.delayedTaskId)?.title || "Selected deliverable"}&rdquo; by {delaySimulation.delayHours} hours affects {delaySimulation.affectedTasks.length} downstream deliverables.
                 </p>
               </div>
 
@@ -212,7 +212,7 @@ export default function AlgorithmIntelligencePage() {
               </div>
 
               <span className="text-xs font-mono px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold">
-                {cpmSchedule.criticalPath.length} Critical Nodes
+                {cpmSchedule.criticalPath.length} Critical Milestones
               </span>
             </div>
 
@@ -220,7 +220,7 @@ export default function AlgorithmIntelligencePage() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 font-mono text-[11px]">
-                    <th className="py-3 px-3">Node ID</th>
+                    <th className="py-3 px-3">Order</th>
                     <th className="py-3 px-3">Deliverable Name</th>
                     <th className="py-3 px-3">Duration</th>
                     <th className="py-3 px-3">Early (ES/EF)</th>
@@ -231,14 +231,14 @@ export default function AlgorithmIntelligencePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-sans">
-                  {Object.values(cpmSchedule.nodes).slice(0, 10).map((node) => (
+                  {Object.values(cpmSchedule.nodes).slice(0, 10).map((node, idx) => (
                     <tr
                       key={node.id}
                       className={`hover:bg-slate-800/30 transition-colors ${
                         node.isCritical ? "bg-rose-950/10" : ""
                       }`}
                     >
-                      <td className="py-3 px-3 font-mono font-medium text-slate-400">{node.id}</td>
+                      <td className="py-3 px-3 font-mono font-bold text-slate-400">#{idx + 1}</td>
                       <td className="py-3 px-3 font-semibold text-white max-w-xs truncate">{node.title}</td>
                       <td className="py-3 px-3 font-mono text-slate-300">{node.durationHours}h</td>
                       <td className="py-3 px-3 font-mono text-indigo-300">{node.earlyStart}h / {node.earlyFinish}h</td>

@@ -18,11 +18,19 @@ import {
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { resolveEntityLabel, formatActionNarrative } from "@/lib/utils/formatters";
 
 export default function AdminHistoryPage() {
-  const { auditLogs, users, showToast } = useClubOps();
+  const { auditLogs, users, tasks, teams, event, showToast } = useClubOps();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAction, setSelectedAction] = useState<string>("all");
+
+  const dbHelper = {
+    getTaskById: (id: string) => tasks.find((t) => t.id === id),
+    getUserById: (id: string) => users.find((u) => u.id === id),
+    getTeamById: (id: string) => teams.find((t) => t.id === id),
+    getEvent: () => event,
+  };
 
   const actions = Array.from(new Set(auditLogs.map((l) => l.action)));
 
@@ -130,8 +138,8 @@ export default function AdminHistoryPage() {
                 <th className="py-3 px-4">Timestamp</th>
                 <th className="py-3 px-4">Action</th>
                 <th className="py-3 px-4">Actor</th>
-                <th className="py-3 px-4">Target Entity</th>
-                <th className="py-3 px-4">Metadata Payload</th>
+                <th className="py-3 px-4">Target Subject</th>
+                <th className="py-3 px-4">Operational Narrative</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -139,6 +147,7 @@ export default function AdminHistoryPage() {
                 const actorName = log.actor?.name || log.actor_user_id;
                 const isAuthEvent = log.action.includes("LOGIN") || log.action.includes("SESSION");
                 const isAlertEvent = log.action.includes("FAILED") || log.action.includes("SUSPEND") || log.action.includes("UNAUTHORIZED");
+                const resolved = resolveEntityLabel(log.entity_type, log.entity_id, dbHelper);
 
                 return (
                   <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
@@ -166,11 +175,18 @@ export default function AdminHistoryPage() {
                         <span className="text-[10px] text-slate-400 font-mono">({log.actor_type})</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 font-mono text-slate-300">
-                      <span className="text-slate-400">{log.entity_type}:</span> {log.entity_id}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                          {resolved.typeLabel}
+                        </span>
+                        <span className="text-xs text-white font-medium max-w-[200px] truncate">
+                          {resolved.name}
+                        </span>
+                      </div>
                     </td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-400 max-w-xs truncate">
-                      {JSON.stringify(log.metadata_json)}
+                    <td className="py-3 px-4 text-xs text-slate-300">
+                      <span>{formatActionNarrative(log.action, log.metadata_json)}</span>
                     </td>
                   </tr>
                 );

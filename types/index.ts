@@ -133,7 +133,12 @@ export type ExplicitPermission =
   | "report:create"
   | "audit:view"
   | "settings:manage"
-  | "session:revoke";
+  | "session:revoke"
+  | "event:update"
+  | "event:view"
+  | "risk:manage"
+  | "document:upload"
+  | "document:view";
 
 export type LegacyPermissionAction =
   | "CREATE_TEAM"

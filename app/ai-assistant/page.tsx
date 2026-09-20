@@ -22,6 +22,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AIToolCall, AIMessage } from "@/types";
+import { formatToolArgumentsReadable } from "@/lib/utils/formatters";
 
 export default function AIAssistantPage() {
   const { currentUser, event, runAICommand, approveTool, showToast } = useClubOps();
@@ -238,10 +239,37 @@ export default function AIAssistantPage() {
                         </div>
                       </div>
 
-                      {/* Tool Payload */}
-                      <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-300 whitespace-pre-wrap max-h-36 overflow-y-auto">
-                        {JSON.stringify(msg.tool_call.arguments_json, null, 2)}
-                      </div>
+                      {/* Humanized Action Summary */}
+                      {(() => {
+                        const formatted = formatToolArgumentsReadable(msg.tool_call.tool_name, msg.tool_call.arguments_json);
+                        return (
+                          <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                            <span className="text-xs font-semibold text-white block">
+                              Proposed Action: {formatted.title}
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {formatted.bullets.map((b, idx) => (
+                                <div key={idx} className="bg-slate-950/70 p-2 rounded-lg border border-slate-800/80">
+                                  <span className="text-slate-400 font-mono block text-[10px] uppercase">
+                                    {b.label}
+                                  </span>
+                                  <span className="text-slate-200 text-xs font-medium truncate block">
+                                    {b.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <details className="text-[10px] text-slate-500 pt-1">
+                              <summary className="cursor-pointer hover:text-slate-400 select-none">
+                                View raw parameters
+                              </summary>
+                              <div className="mt-1.5 p-2 rounded-lg bg-slate-950 border border-slate-800/80 font-mono text-slate-400 overflow-x-auto max-h-32">
+                                {JSON.stringify(msg.tool_call.arguments_json, null, 2)}
+                              </div>
+                            </details>
+                          </div>
+                        );
+                      })()}
 
                       {/* Decision buttons */}
                       {msg.tool_call.status === "pending_approval" && (

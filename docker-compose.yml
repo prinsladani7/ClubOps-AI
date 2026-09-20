@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  clubops-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clubops-ai-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - NEXT_PUBLIC_APP_NAME=ClubOps AI
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/events"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
