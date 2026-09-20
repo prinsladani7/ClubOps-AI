@@ -1,7 +1,17 @@
 import {
   User,
   Event,
+  Project,
+  ProjectMember,
+  UserSession,
+  ProgressReport,
+  UserSkill,
+  AvailabilitySchedule,
+  TimeEntry,
   Task,
+  TaskChecklistItem,
+  TaskComment,
+  TaskEvidence,
   Volunteer,
   Meeting,
   MeetingActionItem,
@@ -21,6 +31,8 @@ import {
   PermissionAction,
   PermissionScope,
   AITeamRecommendation,
+  AIProjectBreakdownResult,
+  AIWorkloadRebalanceSuggestion,
   TaskDelegationStep,
   TaskAssignmentHistory,
 } from "@/types";
@@ -28,6 +40,14 @@ import {
   SEED_USERS,
   SEED_CLUB,
   SEED_EVENT,
+  SEED_PROJECTS,
+  SEED_PROJECT_MEMBERS,
+  SEED_SESSIONS,
+  SEED_PROGRESS_REPORTS,
+  SEED_SKILLS,
+  SEED_USER_SKILLS,
+  SEED_AVAILABILITY,
+  SEED_TIME_ENTRIES,
   SEED_VOLUNTEERS,
   SEED_TASKS,
   SEED_RISKS,
@@ -44,12 +64,24 @@ import {
   SEED_PERMISSION_REQUESTS,
 } from "./mock-store";
 import { can, PermissionContext } from "@/lib/permissions";
+import { CriticalPathEngine, CPMTask, CPMSimulationResult, DelayImpactResult } from "@/lib/algorithms/cpm";
+import { WorkloadOptimizer, OptimizerVolunteer, OptimizerTask, OptimizationSummary } from "@/lib/algorithms/workload-optimizer";
+import { RiskPredictor, HackathonRiskReport } from "@/lib/algorithms/risk-predictor";
+import { RunOfShowEngine, RunOfShowReport, BIT_N_BUILD_36H_TIMELINE } from "@/lib/algorithms/run-of-show";
 
 // Reactive in-memory state initialized from seed data
 class DatabaseStore {
   private users: User[] = [...SEED_USERS];
   private club = { ...SEED_CLUB };
   private event = { ...SEED_EVENT };
+  private projects: Project[] = [...SEED_PROJECTS];
+  private projectMembers: ProjectMember[] = [...SEED_PROJECT_MEMBERS];
+  private sessions: UserSession[] = [...SEED_SESSIONS];
+  private progressReports: ProgressReport[] = [...SEED_PROGRESS_REPORTS];
+  private skills: string[] = [...SEED_SKILLS];
+  private userSkills: UserSkill[] = [...SEED_USER_SKILLS];
+  private availability: AvailabilitySchedule[] = [...SEED_AVAILABILITY];
+  private timeEntries: TimeEntry[] = [...SEED_TIME_ENTRIES];
   private teams: Team[] = [...SEED_TEAMS];
   private teamMembers: TeamMember[] = [...SEED_TEAM_MEMBERS];
   private roleAssignments: RoleAssignment[] = [...SEED_ROLE_ASSIGNMENTS];
@@ -86,6 +118,8 @@ class DatabaseStore {
     const user = this.getCurrentUser();
     return can(user, action, resource, {
       teams: this.teams,
+      projects: this.projects,
+      projectMembers: this.projectMembers,
       roleAssignments: this.roleAssignments,
       ...context,
     });
@@ -127,6 +161,318 @@ class DatabaseStore {
     });
 
     return newUser;
+  }
+
+  // ==========================================
+  // AUTHENTICATION & SESSION MANAGEMENT (Section 1)
+  // ==========================================
+  loginUser(
+    email: string,
+    password?: string,
+    intendedRole?: UserRole
+  ): {
+    success: boolean;
+    error?: string;
+    pendingVerification?: boolean;
+    user?: User;
+    session?: UserSession;
+  } {
+    const user = this.getUserByEmail(email);
+
+    if (!user) {
+      this.addAuditLog({
+        actor_user_id: "system",
+        actor_type: "system",
+        action: "LOGIN_FAILED_NOT_FOUND",
+        entity_type: "user",
+        entity_id: email,
+        metadata_json: { email, intendedRole },
+      });
+      return { success: false, error: "No account found matching this email address. Please check spelling or create an account." };
+    }
+
+    // Role matching requirement (Specification Section 2, 3 & 8)
+    // The role selected on the first screen must match the account's assigned role.
+    if (intendedRole && user.role !== intendedRole) {
+      this.addAuditLog({
+        actor_user_id: user.id,
+        actor_type: "user",
+        action: "LOGIN_FAILED_ROLE_MISMATCH",
+        entity_type: "user",
+        entity_id: user.id,
+        metadata_json: { email, intendedRole, actualRole: user.role },
+      });
+      return {
+        success: false,
+        error: `Role mismatch: This account is registered as '${user.role.toUpperCase()}', not '${intendedRole.toUpperCase()}'. Please return to the role selection screen and select '${user.role.toUpperCase()}'.`,
+      };
+    }
+
+    // Check account states
+    if (user.status === "pending_verification") {
+      this.addAuditLog({
+        actor_user_id: user.id,
+        actor_type: "user",
+        action: "LOGIN_FAILED_PENDING_VERIFICATION",
+        entity_type: "user",
+        entity_id: user.id,
+        metadata_json: { email },
+      });
+      return {
+        success: false,
+        error: "Account verification required. Please enter the verification token sent to your email.",
+        pendingVerification: true,
+        user,
+      };
+    }
+
+    if (user.status === "suspended") {
+      this.addAuditLog({
+        actor_user_id: user.id,
+        actor_type: "user",
+        action: "LOGIN_FAILED_SUSPENDED",
+        entity_type: "user",
+        entity_id: user.id,
+        metadata_json: { email },
+      });
+      return { success: false, error: "Access Denied: Your account has been suspended by administration. Contact clubops-admin@syntaxsquad.edu." };
+    }
+
+    if (user.status === "deactivated") {
+      this.addAuditLog({
+        actor_user_id: user.id,
+        actor_type: "user",
+        action: "LOGIN_FAILED_DEACTIVATED",
+        entity_type: "user",
+        entity_id: user.id,
+        metadata_json: { email },
+      });
+      return { success: false, error: "Access Denied: This account has been deactivated." };
+    }
+
+    if (user.status === "locked_temporarily") {
+      this.addAuditLog({
+        actor_user_id: user.id,
+        actor_type: "user",
+        action: "LOGIN_FAILED_LOCKED",
+        entity_type: "user",
+        entity_id: user.id,
+        metadata_json: { email, locked_until: user.locked_until },
+      });
+      return { success: false, error: "Account is temporarily locked due to excessive failed attempts. Please try again later or contact admin." };
+    }
+
+    // Password validation simulation with rate limiting
+    if (password && password.toLowerCase() === "wrongpassword") {
+      user.failed_login_attempts = (user.failed_login_attempts || 0) + 1;
+      if (user.failed_login_attempts >= 5) {
+        user.status = "locked_temporarily";
+        user.locked_until = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        this.addAuditLog({
+          actor_user_id: user.id,
+          actor_type: "system",
+          action: "ACCOUNT_LOCKED_RATE_LIMIT",
+          entity_type: "user",
+          entity_id: user.id,
+          metadata_json: { attempts: user.failed_login_attempts },
+        });
+        return { success: false, error: "Too many failed attempts. Account has been locked temporarily for 15 minutes." };
+      }
+
+      this.addAuditLog({
+        actor_user_id: user.id,
+        actor_type: "user",
+        action: "LOGIN_FAILED_CREDENTIALS",
+        entity_type: "user",
+        entity_id: user.id,
+        metadata_json: { attempts: user.failed_login_attempts },
+      });
+      return { success: false, error: "Invalid password provided." };
+    }
+
+    // Successful login
+    user.failed_login_attempts = 0;
+    this.setCurrentUser(user.id);
+
+    const session: UserSession = {
+      id: `sess-${Date.now().toString(36)}`,
+      user_id: user.id,
+      token: `token-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`,
+      ip_address: "127.0.0.1",
+      user_agent: "ClubOps AI Web Client",
+      expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+      revoked: false,
+      created_at: new Date().toISOString(),
+    };
+    this.sessions.unshift(session);
+
+    this.addAuditLog({
+      actor_user_id: user.id,
+      actor_type: "user",
+      action: "LOGIN_SUCCESS",
+      entity_type: "user",
+      entity_id: user.id,
+      metadata_json: { role: user.role, sessionId: session.id },
+    });
+
+    return { success: true, user, session };
+  }
+
+  verifyEmail(tokenOrEmail: string): { success: boolean; user?: User; error?: string } {
+    const user = this.users.find(
+      (u) =>
+        u.verification_token === tokenOrEmail ||
+        u.email.toLowerCase() === tokenOrEmail.toLowerCase()
+    );
+
+    if (!user) {
+      return { success: false, error: "Invalid or expired verification token." };
+    }
+
+    user.status = "active";
+    user.verification_token = undefined;
+
+    this.addAuditLog({
+      actor_user_id: user.id,
+      actor_type: "user",
+      action: "EMAIL_VERIFIED",
+      entity_type: "user",
+      entity_id: user.id,
+      metadata_json: { email: user.email },
+    });
+
+    return { success: true, user };
+  }
+
+  forgotPassword(email: string): { success: boolean; message: string } {
+    const user = this.getUserByEmail(email);
+    this.addAuditLog({
+      actor_user_id: user ? user.id : "anonymous",
+      actor_type: "user",
+      action: "PASSWORD_RESET_REQUEST",
+      entity_type: "user",
+      entity_id: email,
+      metadata_json: { email, found: !!user },
+    });
+    return { success: true, message: `Password reset instructions dispatched to ${email}.` };
+  }
+
+  resetPassword(token: string, newPassword?: string): { success: boolean; message: string } {
+    this.addAuditLog({
+      actor_user_id: "anonymous",
+      actor_type: "user",
+      action: "PASSWORD_RESET_COMPLETED",
+      entity_type: "token",
+      entity_id: token,
+      metadata_json: {},
+    });
+    return { success: true, message: "Password updated successfully. Please log in with your new credentials." };
+  }
+
+  getUserSessions(userId?: string): UserSession[] {
+    const uid = userId || this.currentUserId;
+    return this.sessions.filter((s) => s.user_id === uid && !s.revoked);
+  }
+
+  revokeSession(sessionId: string): boolean {
+    if (!this.checkPermission("session:revoke")) {
+      throw new Error("Unauthorized: Only Admins can revoke sessions.");
+    }
+    const sess = this.sessions.find((s) => s.id === sessionId);
+    if (sess) {
+      sess.revoked = true;
+      this.addAuditLog({
+        actor_user_id: this.currentUserId,
+        actor_type: "user",
+        action: "SESSION_REVOKED",
+        entity_type: "session",
+        entity_id: sessionId,
+        metadata_json: { user_id: sess.user_id },
+      });
+      return true;
+    }
+    return false;
+  }
+
+  revokeAllSessions(userId?: string): number {
+    if (!this.checkPermission("session:revoke") && !this.checkPermission("settings:manage")) {
+      throw new Error("Unauthorized: Only Admins can revoke all sessions.");
+    }
+    const targetUserId = userId || this.currentUserId;
+    let count = 0;
+    this.sessions.forEach((s) => {
+      if (s.user_id === targetUserId && !s.revoked) {
+        s.revoked = true;
+        count++;
+      }
+    });
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "ALL_SESSIONS_REVOKED",
+      entity_type: "user",
+      entity_id: targetUserId,
+      metadata_json: { revokedCount: count },
+    });
+    return count;
+  }
+
+  suspendUser(userId: string, reason?: string): boolean {
+    if (!this.checkPermission("settings:manage")) {
+      throw new Error("Unauthorized: Only Admins can suspend accounts.");
+    }
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) return false;
+    user.status = "suspended";
+    this.revokeAllSessions(userId);
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "USER_SUSPENDED",
+      entity_type: "user",
+      entity_id: userId,
+      metadata_json: { reason: reason || "Administrative suspension" },
+    });
+    return true;
+  }
+
+  deactivateUser(userId: string, reason?: string): boolean {
+    if (!this.checkPermission("settings:manage")) {
+      throw new Error("Unauthorized: Only Admins can deactivate accounts.");
+    }
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) return false;
+    user.status = "deactivated";
+    this.revokeAllSessions(userId);
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "USER_DEACTIVATED",
+      entity_type: "user",
+      entity_id: userId,
+      metadata_json: { reason: reason || "Account deactivated" },
+    });
+    return true;
+  }
+
+  activateUser(userId: string): boolean {
+    if (!this.checkPermission("settings:manage")) {
+      throw new Error("Unauthorized: Only Admins can restore accounts.");
+    }
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) return false;
+    user.status = "active";
+    user.failed_login_attempts = 0;
+    user.locked_until = undefined;
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "USER_ACTIVATED",
+      entity_type: "user",
+      entity_id: userId,
+      metadata_json: {},
+    });
+    return true;
   }
 
   // Club & Event
@@ -487,6 +833,737 @@ class DatabaseStore {
   }
 
   // ==========================================
+  // PROJECTS & SCOPED MEMBERS (Section 2 & 5)
+  // ==========================================
+  getProjects(): Project[] {
+    return this.projects.map((p) => {
+      const pTasks = this.tasks.filter((t) => t.project_id === p.id);
+      const members = this.projectMembers.filter((m) => m.project_id === p.id && m.status === "active");
+      const organizer = this.users.find((u) => u.id === p.organizer_id);
+      const activeTasks = pTasks.filter((t) => t.status !== "completed" && t.status !== "done");
+      const overdueTasks = activeTasks.filter((t) => new Date(t.due_at).getTime() < Date.now());
+      const completedTasks = pTasks.filter((t) => t.status === "completed" || t.status === "done");
+
+      return {
+        ...p,
+        organizer,
+        members,
+        task_count: pTasks.length,
+        completed_task_count: completedTasks.length,
+        overdue_task_count: overdueTasks.length,
+      };
+    });
+  }
+
+  getProjectById(id: string): Project | undefined {
+    const p = this.projects.find((proj) => proj.id === id);
+    if (!p) return undefined;
+    const pTasks = this.tasks.filter((t) => t.project_id === p.id);
+    const members = this.projectMembers.filter((m) => m.project_id === p.id && m.status === "active");
+    const organizer = this.users.find((u) => u.id === p.organizer_id);
+    const completedTasks = pTasks.filter((t) => t.status === "completed" || t.status === "done");
+    const activeTasks = pTasks.filter((t) => t.status !== "completed" && t.status !== "done");
+    const overdueTasks = activeTasks.filter((t) => new Date(t.due_at).getTime() < Date.now());
+
+    return {
+      ...p,
+      organizer,
+      members,
+      task_count: pTasks.length,
+      completed_task_count: completedTasks.length,
+      overdue_task_count: overdueTasks.length,
+    };
+  }
+
+  createProject(data: {
+    name: string;
+    description: string;
+    organizer_id: string;
+    organizers?: string[];
+    budget?: number;
+    start_date?: string;
+    end_date?: string;
+  }): Project {
+    if (!this.checkPermission("project:create")) {
+      throw new Error("Unauthorized: Only Admins have permission to create projects.");
+    }
+
+    const projectId = `proj-${Date.now().toString(36)}`;
+    const newProj: Project = {
+      id: projectId,
+      club_id: this.club.id,
+      name: data.name,
+      description: data.description,
+      organizer_id: data.organizer_id,
+      organizers: data.organizers && data.organizers.length > 0 ? data.organizers : [data.organizer_id],
+      status: "active",
+      budget: data.budget || 0,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    this.projects.push(newProj);
+
+    // Auto-enroll lead organizer
+    this.projectMembers.push({
+      id: `pm-${Date.now().toString(36)}-org`,
+      project_id: projectId,
+      user_id: data.organizer_id,
+      role: "organizer",
+      status: "active",
+      joined_at: new Date().toISOString(),
+    });
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "CREATE_PROJECT",
+      entity_type: "project",
+      entity_id: projectId,
+      metadata_json: { name: data.name, organizer_id: data.organizer_id, budget: data.budget },
+    });
+
+    return this.getProjectById(projectId)!;
+  }
+
+  updateProject(id: string, patch: Partial<Project>): Project | undefined {
+    if (!this.checkPermission("project:update", undefined, { projectId: id })) {
+      throw new Error("Unauthorized: You do not have permission to update this project.");
+    }
+
+    const idx = this.projects.findIndex((p) => p.id === id);
+    if (idx === -1) return undefined;
+
+    this.projects[idx] = {
+      ...this.projects[idx],
+      ...patch,
+      updated_at: new Date().toISOString(),
+    };
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "UPDATE_PROJECT",
+      entity_type: "project",
+      entity_id: id,
+      metadata_json: patch,
+    });
+
+    return this.getProjectById(id);
+  }
+
+  archiveProject(id: string): boolean {
+    if (!this.checkPermission("project:archive", undefined, { projectId: id })) {
+      throw new Error("Unauthorized: Only Admins can archive projects.");
+    }
+    const proj = this.projects.find((p) => p.id === id);
+    if (!proj) return false;
+
+    proj.status = "archived";
+    proj.updated_at = new Date().toISOString();
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "ARCHIVE_PROJECT",
+      entity_type: "project",
+      entity_id: id,
+      metadata_json: {},
+    });
+    return true;
+  }
+
+  restoreProject(id: string): boolean {
+    if (!this.checkPermission("project:create")) {
+      throw new Error("Unauthorized: Only Admins can restore projects.");
+    }
+    const proj = this.projects.find((p) => p.id === id);
+    if (!proj) return false;
+
+    proj.status = "active";
+    proj.updated_at = new Date().toISOString();
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "RESTORE_PROJECT",
+      entity_type: "project",
+      entity_id: id,
+      metadata_json: {},
+    });
+    return true;
+  }
+
+  freezeProjectChanges(id: string): boolean {
+    if (!this.checkPermission("settings:manage")) {
+      throw new Error("Unauthorized: Only Admins can freeze project changes.");
+    }
+    const proj = this.projects.find((p) => p.id === id);
+    if (!proj) return false;
+
+    proj.status = "suspended";
+    proj.updated_at = new Date().toISOString();
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "PROJECT_FROZEN_EMERGENCY",
+      entity_type: "project",
+      entity_id: id,
+      metadata_json: {},
+    });
+    return true;
+  }
+
+  getProjectMembers(projectId: string): ProjectMember[] {
+    return this.projectMembers
+      .filter((pm) => pm.project_id === projectId && pm.status === "active")
+      .map((pm) => ({
+        ...pm,
+        user: this.users.find((u) => u.id === pm.user_id),
+      }));
+  }
+
+  getAllProjectMembers(): ProjectMember[] {
+    return this.projectMembers.map((pm) => ({
+      ...pm,
+      user: this.users.find((u) => u.id === pm.user_id),
+    }));
+  }
+
+  addProjectMember(
+    projectId: string,
+    userId: string,
+    role: "organizer" | "volunteer" = "volunteer"
+  ): ProjectMember {
+    if (
+      !this.checkPermission("volunteer:add", undefined, { projectId }) &&
+      !this.checkPermission("member:add", undefined, { projectId })
+    ) {
+      throw new Error("Unauthorized: You do not have permission to add members to this project.");
+    }
+
+    const existing = this.projectMembers.find((m) => m.project_id === projectId && m.user_id === userId);
+    if (existing) {
+      existing.status = "active";
+      existing.role = role;
+      return {
+        ...existing,
+        user: this.users.find((u) => u.id === userId),
+      };
+    }
+
+    const member: ProjectMember = {
+      id: `pm-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+      project_id: projectId,
+      user_id: userId,
+      role,
+      status: "active",
+      joined_at: new Date().toISOString(),
+    };
+    this.projectMembers.push(member);
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "MEMBER_ADD",
+      entity_type: "project_member",
+      entity_id: member.id,
+      metadata_json: { projectId, userId, role },
+    });
+
+    return {
+      ...member,
+      user: this.users.find((u) => u.id === userId),
+    };
+  }
+
+  removeProjectMember(
+    projectMemberId: string,
+    reassignmentUserId?: string
+  ): { member: ProjectMember; impactedTasksCount: number; reassignedTo?: string } {
+    const member = this.projectMembers.find((m) => m.id === projectMemberId);
+    if (!member) {
+      throw new Error("Project member record not found.");
+    }
+
+    if (
+      !this.checkPermission("member:remove", undefined, { projectId: member.project_id }) &&
+      !this.checkPermission("volunteer:remove", undefined, { projectId: member.project_id })
+    ) {
+      throw new Error("Unauthorized: You do not have permission to remove members from this project.");
+    }
+
+    // Soft-deactivate member
+    member.status = "deactivated";
+
+    // Active task impact calculation & optional reassignment
+    const activeTasks = this.tasks.filter(
+      (t) =>
+        (t.project_id === member.project_id || t.team_id === member.project_id) &&
+        t.owner_id === member.user_id &&
+        t.status !== "completed" &&
+        t.status !== "done"
+    );
+
+    if (reassignmentUserId) {
+      activeTasks.forEach((t) => {
+        t.owner_id = reassignmentUserId;
+        t.updated_at = new Date().toISOString();
+      });
+    }
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "REMOVE_PROJECT_MEMBER",
+      entity_type: "project_member",
+      entity_id: projectMemberId,
+      metadata_json: {
+        projectId: member.project_id,
+        userId: member.user_id,
+        impactedTasksCount: activeTasks.length,
+        reassignedTo: reassignmentUserId || null,
+      },
+    });
+
+    return {
+      member,
+      impactedTasksCount: activeTasks.length,
+      reassignedTo: reassignmentUserId,
+    };
+  }
+
+  // ==========================================
+  // PROGRESS REPORTS (Section 2)
+  // ==========================================
+  getProgressReports(projectId?: string): ProgressReport[] {
+    let list = this.progressReports;
+    if (projectId) {
+      list = list.filter((r) => r.project_id === projectId);
+    }
+    return list.map((r) => ({
+      ...r,
+      author: this.users.find((u) => u.id === r.author_id),
+    }));
+  }
+
+  createProgressReport(data: {
+    project_id: string;
+    title: string;
+    summary: string;
+    completed_tasks: number;
+    pending_tasks: number;
+    blocked_tasks: number;
+    risks_identified?: string[];
+  }): ProgressReport {
+    if (!this.checkPermission("report:create", undefined, { projectId: data.project_id })) {
+      throw new Error("Unauthorized: You do not have permission to generate progress reports.");
+    }
+
+    const report: ProgressReport = {
+      id: `report-${Date.now().toString(36)}`,
+      project_id: data.project_id,
+      author_id: this.currentUserId,
+      title: data.title,
+      summary: data.summary,
+      completed_tasks: data.completed_tasks,
+      pending_tasks: data.pending_tasks,
+      blocked_tasks: data.blocked_tasks,
+      risks_identified: data.risks_identified || [],
+      created_at: new Date().toISOString(),
+    };
+
+    this.progressReports.unshift(report);
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "CREATE_PROGRESS_REPORT",
+      entity_type: "progress_report",
+      entity_id: report.id,
+      metadata_json: { title: data.title, projectId: data.project_id },
+    });
+
+    return {
+      ...report,
+      author: this.users.find((u) => u.id === this.currentUserId),
+    };
+  }
+
+  // ==========================================
+  // TASK WORKFLOW (Pending -> Accepted -> In Progress -> Blocked -> Submitted -> Completed)
+  // ==========================================
+  acceptTask(taskId: string): Task | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    if (!this.checkPermission("task:update", task, { taskId })) {
+      throw new Error("Unauthorized: You do not have permission to accept this task.");
+    }
+
+    task.status = "accepted";
+    task.updated_at = new Date().toISOString();
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "TASK_WORKFLOW_ACCEPTED",
+      entity_type: "task",
+      entity_id: taskId,
+      metadata_json: { previousStatus: "pending", newStatus: "accepted" },
+    });
+
+    return this.getTaskById(taskId);
+  }
+
+  startTask(taskId: string): Task | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    if (!this.checkPermission("task:update", task, { taskId })) {
+      throw new Error("Unauthorized: You do not have permission to start this task.");
+    }
+
+    task.status = "in_progress";
+    task.updated_at = new Date().toISOString();
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "TASK_WORKFLOW_IN_PROGRESS",
+      entity_type: "task",
+      entity_id: taskId,
+      metadata_json: { newStatus: "in_progress" },
+    });
+
+    return this.getTaskById(taskId);
+  }
+
+  blockTask(taskId: string, blockerReason: string): Task | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    task.status = "blocked";
+    task.blocked_at = new Date().toISOString();
+    task.updated_at = new Date().toISOString();
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "TASK_WORKFLOW_BLOCKED",
+      entity_type: "task",
+      entity_id: taskId,
+      metadata_json: { blockerReason },
+    });
+
+    return this.getTaskById(taskId);
+  }
+
+  submitTaskEvidence(
+    taskId: string,
+    evidenceUrl: string,
+    notes?: string
+  ): Task | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    if (!this.checkPermission("task:update", task, { taskId })) {
+      throw new Error("Unauthorized: You do not have permission to submit evidence for this task.");
+    }
+
+    const evidence: TaskEvidence = {
+      id: `ev-${Date.now().toString(36)}`,
+      task_id: taskId,
+      evidence_url: evidenceUrl,
+      notes,
+      submitted_by: this.currentUserId,
+      submitted_at: new Date().toISOString(),
+      approved: false,
+    };
+
+    task.evidence = [...(task.evidence || []), evidence];
+    task.status = "submitted";
+    task.updated_at = new Date().toISOString();
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "TASK_WORKFLOW_SUBMITTED",
+      entity_type: "task",
+      entity_id: taskId,
+      metadata_json: { evidenceUrl, notes },
+    });
+
+    return this.getTaskById(taskId);
+  }
+
+  completeTask(taskId: string): Task | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    if (!this.checkPermission("task:complete", task, { taskId })) {
+      throw new Error("Unauthorized: You do not have permission to complete this task.");
+    }
+
+    task.status = "completed";
+    task.updated_at = new Date().toISOString();
+
+    if (task.evidence && task.evidence.length > 0) {
+      task.evidence[task.evidence.length - 1].approved = true;
+    }
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "TASK_WORKFLOW_COMPLETED",
+      entity_type: "task",
+      entity_id: taskId,
+      metadata_json: { completedBy: this.currentUserId },
+    });
+
+    return this.getTaskById(taskId);
+  }
+
+  requestTaskChanges(taskId: string, feedback: string): Task | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    if (!this.checkPermission("task:update", task, { taskId })) {
+      throw new Error("Unauthorized: You do not have permission to request changes on this task.");
+    }
+
+    task.status = "in_progress";
+    task.updated_at = new Date().toISOString();
+
+    if (task.evidence && task.evidence.length > 0) {
+      task.evidence[task.evidence.length - 1].approved = false;
+      task.evidence[task.evidence.length - 1].notes = `${task.evidence[task.evidence.length - 1].notes || ""}\nChanges requested: ${feedback}`.trim();
+    }
+
+    this.addTaskComment(taskId, `Organizer requested changes: ${feedback}`);
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: "TASK_CHANGES_REQUESTED",
+      entity_type: "task",
+      entity_id: taskId,
+      metadata_json: { feedback },
+    });
+
+    return this.getTaskById(taskId);
+  }
+
+  addChecklistItem(taskId: string, text: string): TaskChecklistItem | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    const item: TaskChecklistItem = {
+      id: `chk-${Date.now().toString(36)}`,
+      text,
+      completed: false,
+    };
+
+    task.checklist = [...(task.checklist || []), item];
+    task.updated_at = new Date().toISOString();
+
+    return item;
+  }
+
+  toggleChecklistItem(taskId: string, checklistItemId: string): boolean {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task || !task.checklist) return false;
+
+    const item = task.checklist.find((c) => c.id === checklistItemId);
+    if (!item) return false;
+
+    item.completed = !item.completed;
+    task.updated_at = new Date().toISOString();
+    return true;
+  }
+
+  addTaskComment(taskId: string, content: string): TaskComment | undefined {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task) return undefined;
+
+    const comment: TaskComment = {
+      id: `tc-${Date.now().toString(36)}`,
+      task_id: taskId,
+      user_id: this.currentUserId,
+      content,
+      created_at: new Date().toISOString(),
+      user: this.users.find((u) => u.id === this.currentUserId),
+    };
+
+    task.comments = [...(task.comments || []), comment];
+    task.updated_at = new Date().toISOString();
+
+    return comment;
+  }
+
+  logTimeEntry(data: {
+    task_id: string;
+    hours_spent: number;
+    date: string;
+    notes?: string;
+  }): TimeEntry {
+    const entry: TimeEntry = {
+      id: `te-${Date.now().toString(36)}`,
+      task_id: data.task_id,
+      user_id: this.currentUserId,
+      hours_spent: data.hours_spent,
+      date: data.date,
+      notes: data.notes,
+      created_at: new Date().toISOString(),
+    };
+
+    this.timeEntries.push(entry);
+
+    // Update task actual hours
+    const task = this.tasks.find((t) => t.id === data.task_id);
+    if (task) {
+      task.actual_hours = (task.actual_hours || 0) + data.hours_spent;
+      task.updated_at = new Date().toISOString();
+    }
+
+    return entry;
+  }
+
+  getTimeEntries(taskId?: string, userId?: string): TimeEntry[] {
+    let list = this.timeEntries;
+    if (taskId) list = list.filter((te) => te.task_id === taskId);
+    if (userId) list = list.filter((te) => te.user_id === userId);
+    return list;
+  }
+
+  // ==========================================
+  // SMART AI FEATURES (Section 6)
+  // ==========================================
+  breakdownProject(spec: {
+    goal: string;
+    project_id?: string;
+    target_deadline?: string;
+  }): AIProjectBreakdownResult {
+    return {
+      project_id: spec.project_id || "proj-techfest-2026",
+      project_name: spec.goal,
+      summary: `AI Decomposition for "${spec.goal}" into 4 streamlined, dependency-linked operational workstreams.`,
+      suggested_tasks: [
+        {
+          title: `Project Governance & Clearances for ${spec.goal}`,
+          description: "Establish administrative milestones, obtain university Dean approvals, and configure tracking.",
+          estimated_hours: 8,
+          priority: "critical",
+          required_skills: ["Planning", "Administrative Approvals"],
+          suggested_assignee_id: "usr-jay",
+          suggested_assignee_name: "Jay Shah",
+        },
+        {
+          title: `Venue Infrastructure & AV Deployment for ${spec.goal}`,
+          description: "Stage rigging, line-array audio test, electrical backup generator setup.",
+          estimated_hours: 14,
+          priority: "high",
+          required_skills: ["Venue Coordination", "AV Hardware", "Stage Rigging"],
+          suggested_assignee_id: "usr-rahul",
+          suggested_assignee_name: "Rahul Sharma",
+          dependencies: ["Task 1 Prerequisite"],
+        },
+        {
+          title: `Portal Registration & Public Announcement Campaign`,
+          description: "Deploy registration webhook API, launch Instagram countdown, and print participant badges.",
+          estimated_hours: 10,
+          priority: "high",
+          required_skills: ["Web Dev", "Graphic Design", "Social Media"],
+          suggested_assignee_id: "usr-ananya",
+          suggested_assignee_name: "Ananya Iyer",
+        },
+        {
+          title: `Volunteer Briefing & Day-Of Coordination Protocol`,
+          description: "Conduct security briefing, assign walkie-talkie channels, and run dry-run walkthrough.",
+          estimated_hours: 6,
+          priority: "medium",
+          required_skills: ["Security", "Crowd Control"],
+          suggested_assignee_id: "usr-tanvi",
+          suggested_assignee_name: "Tanvi Saxena",
+          dependencies: ["Task 2 Prerequisite"],
+        },
+      ],
+      estimated_total_hours: 38,
+      risk_factors: [
+        "Auditorium key handover delay could compress stage preparation window.",
+        "Resource load on AV lead requires assistant co-assignee.",
+      ],
+    };
+  }
+
+  rebalanceWorkload(thresholdScore: number = 80): AIWorkloadRebalanceSuggestion[] {
+    const vols = this.getVolunteers();
+    const overloaded = vols.filter((v) => (v.workloadScore || 0) >= thresholdScore);
+    const available = vols.filter((v) => (v.workloadScore || 0) <= 45);
+
+    const suggestions: AIWorkloadRebalanceSuggestion[] = [];
+
+    for (const ov of overloaded) {
+      const activeTasks = this.tasks.filter((t) => t.owner_id === ov.user_id && t.status !== "completed" && t.status !== "done");
+      if (activeTasks.length > 0 && available.length > 0) {
+        // Pick the least overloaded target
+        const target = available.shift()!;
+        const taskToMove = activeTasks[0];
+
+        suggestions.push({
+          from_user_id: ov.user_id,
+          from_user_name: ov.user?.name || "Volunteer",
+          to_user_id: target.user_id,
+          to_user_name: target.user?.name || "Volunteer",
+          task_id: taskToMove.id,
+          task_title: taskToMove.title,
+          reason: `Rebalance workload: ${ov.user?.name} is at ${ov.workloadScore}% capacity (${activeTasks.length} active tasks). Moving to ${target.user?.name} (${target.workloadScore}% capacity).`,
+          workload_delta: {
+            from_before: ov.workloadScore || 85,
+            from_after: Math.max(20, (ov.workloadScore || 85) - 15),
+            to_before: target.workloadScore || 30,
+            to_after: (target.workloadScore || 30) + 15,
+          },
+        });
+      }
+    }
+
+    return suggestions;
+  }
+
+  applyWorkloadRebalance(suggestions: AIWorkloadRebalanceSuggestion[]): number {
+    let count = 0;
+    for (const s of suggestions) {
+      const task = this.tasks.find((t) => t.id === s.task_id);
+      if (task) {
+        task.owner_id = s.to_user_id;
+        task.updated_at = new Date().toISOString();
+        count++;
+
+        // Update workload scores
+        const fromVol = this.volunteers.find((v) => v.user_id === s.from_user_id);
+        if (fromVol) fromVol.workloadScore = s.workload_delta.from_after;
+
+        const toVol = this.volunteers.find((v) => v.user_id === s.to_user_id);
+        if (toVol) toVol.workloadScore = s.workload_delta.to_after;
+
+        this.addAuditLog({
+          actor_user_id: this.currentUserId,
+          actor_type: "ai",
+          action: "WORKLOAD_REBALANCE_EXECUTED",
+          entity_type: "task",
+          entity_id: task.id,
+          metadata_json: s,
+        });
+      }
+    }
+    return count;
+  }
+
+  // ==========================================
   // TEAMS & HIERARCHICAL MANAGEMENT (Section 2 & 5)
   // ==========================================
   getTeams(): Team[] {
@@ -653,6 +1730,13 @@ class DatabaseStore {
         ...m,
         user: this.users.find((u) => u.id === m.user_id),
       }));
+  }
+
+  getAllTeamMembers(): TeamMember[] {
+    return this.teamMembers.map((m) => ({
+      ...m,
+      user: this.users.find((u) => u.id === m.user_id),
+    }));
   }
 
   addTeamMember(
@@ -1801,9 +2885,157 @@ class DatabaseStore {
         const req = this.reviewPermissionRequest(args.request_id, args.action || "approve", args.duration_hours, args.review_notes);
         return { request_id: req?.id, status: req?.status };
       }
+      case "breakdown_project": {
+        return this.breakdownProject({
+          goal: args.goal || "Event Milestone",
+          project_id: args.project_id,
+          target_deadline: args.target_deadline,
+        });
+      }
+      case "rebalance_workload": {
+        const suggestions = this.rebalanceWorkload(args.threshold_score || 80);
+        return { suggestions_count: suggestions.length, suggestions };
+      }
       default:
         return { message: `Tool ${toolName} executed successfully.` };
     }
+  }
+
+  // ==========================================
+  // MATHEMATICAL ALGORITHMS & OPERATIONS
+  // ==========================================
+
+  getCriticalPathAnalysis(): CPMSimulationResult {
+    const cpmTasks: CPMTask[] = this.tasks.map((t) => {
+      // Estimate duration in hours from due_at or default
+      const dur = t.estimated_hours || (t.priority === "critical" ? 6 : t.priority === "high" ? 4 : 2);
+      return {
+        id: t.id,
+        title: t.title,
+        durationHours: dur,
+        dependencies: t.dependencies || [],
+        assignedTo: t.owner_id,
+        category: t.category,
+        isBlocked: t.is_blocked || t.status === "blocked",
+      };
+    });
+
+    return CriticalPathEngine.solve(cpmTasks);
+  }
+
+  simulateTaskDelay(taskId: string, delayHours: number): DelayImpactResult {
+    const cpmTasks: CPMTask[] = this.tasks.map((t) => {
+      const dur = t.estimated_hours || (t.priority === "critical" ? 6 : t.priority === "high" ? 4 : 2);
+      return {
+        id: t.id,
+        title: t.title,
+        durationHours: dur,
+        dependencies: t.dependencies || [],
+        assignedTo: t.owner_id,
+        category: t.category,
+        isBlocked: t.is_blocked || t.status === "blocked",
+      };
+    });
+
+    return CriticalPathEngine.simulateDelay(cpmTasks, taskId, delayHours);
+  }
+
+  getOptimizedWorkload(): OptimizationSummary {
+    const vols = this.getVolunteers();
+    const optVols: OptimizerVolunteer[] = vols.map((v) => ({
+      id: v.id,
+      name: v.user?.name || "Volunteer",
+      skills: v.skills || [],
+      currentWorkload: v.workloadScore || 40,
+      availability: v.availability,
+      activeTaskCount: v.assignedTasks?.length || 0,
+      committee: v.notes?.includes("Logistics")
+        ? "Logistics & Venue"
+        : v.notes?.includes("Stage")
+        ? "Tech & AV"
+        : "Operations",
+    }));
+
+    const optTasks: OptimizerTask[] = this.tasks
+      .filter((t) => t.status !== "completed" && t.status !== "done")
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        priority: t.priority,
+        requiredSkills: t.skills || ["Operations"],
+        estimatedHours: t.estimated_hours || 3,
+        currentAssigneeId: t.owner_id,
+        committee: t.team_id || "General Operations",
+      }));
+
+    return WorkloadOptimizer.optimize(optVols, optTasks);
+  }
+
+  getHackathonRiskReport(): HackathonRiskReport {
+    const vols = this.getVolunteers();
+    const mappedVols = vols.map((v) => ({
+      id: v.id,
+      user_id: v.user_id,
+      name: v.user?.name || "Volunteer",
+      workloadScore: v.workloadScore || 50,
+      availability: v.availability,
+    }));
+
+    const mappedTasks = this.tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      due_at: t.due_at,
+      owner_id: t.owner_id,
+      is_blocked: t.is_blocked,
+      blocker_reason: t.blocker_reason,
+      escalation_level: t.escalation_level,
+      dependencies: t.dependencies,
+      dependents: t.dependents,
+      category: t.category,
+    }));
+
+    return RiskPredictor.evaluate({
+      tasks: mappedTasks,
+      volunteers: mappedVols,
+      eventMilestoneHoursRemaining: 36,
+    });
+  }
+
+  getRunOfShowAnalysis(currentHour: number = 6): RunOfShowReport {
+    return RunOfShowEngine.analyzeSchedule(BIT_N_BUILD_36H_TIMELINE, currentHour);
+  }
+
+  reviewTaskEvidence(
+    taskId: string,
+    evidenceId: string,
+    approved: boolean,
+    reviewerNotes?: string
+  ): boolean {
+    const task = this.tasks.find((t) => t.id === taskId);
+    if (!task || !task.evidence) return false;
+
+    const ev = task.evidence.find((e) => e.id === evidenceId);
+    if (!ev) return false;
+
+    ev.approved = approved;
+    if (approved) {
+      task.status = "completed";
+    } else {
+      task.status = "in_progress";
+    }
+
+    this.addAuditLog({
+      actor_user_id: this.currentUserId,
+      actor_type: "user",
+      action: approved ? "TASK_EVIDENCE_APPROVED" : "TASK_EVIDENCE_REVISION_REQUESTED",
+      entity_type: "task",
+      entity_id: taskId,
+      metadata_json: { evidenceId, approved, reviewerNotes },
+    });
+
+    return true;
   }
 }
 

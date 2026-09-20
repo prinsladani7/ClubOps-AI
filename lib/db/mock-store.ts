@@ -2,6 +2,13 @@ import {
   User,
   Club,
   Event,
+  Project,
+  ProjectMember,
+  UserSession,
+  ProgressReport,
+  UserSkill,
+  AvailabilitySchedule,
+  TimeEntry,
   Task,
   TaskDependency,
   Volunteer,
@@ -213,7 +220,47 @@ export const SEED_USERS: User[] = [
     email: "simran.k@syntaxsquad.edu",
     avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Simran",
     role: "member",
+    status: "active",
     created_at: "2026-08-27T17:00:00Z",
+  },
+  {
+    id: "usr-pending",
+    name: "Aman Verma (Pending)",
+    email: "pending@syntaxsquad.edu",
+    avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Aman",
+    role: "volunteer",
+    status: "pending_verification",
+    verification_token: "verify-token-12345",
+    created_at: "2026-09-15T10:00:00Z",
+  },
+  {
+    id: "usr-suspended",
+    name: "Karan Johar (Suspended)",
+    email: "suspended@syntaxsquad.edu",
+    avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Suspended",
+    role: "volunteer",
+    status: "suspended",
+    created_at: "2026-08-20T10:00:00Z",
+  },
+  {
+    id: "usr-deactivated",
+    name: "Deepak Chahar (Deactivated)",
+    email: "deactivated@syntaxsquad.edu",
+    avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Deepak",
+    role: "volunteer",
+    status: "deactivated",
+    created_at: "2026-08-15T10:00:00Z",
+  },
+  {
+    id: "usr-locked",
+    name: "Rohan Mehra (Locked)",
+    email: "locked@syntaxsquad.edu",
+    avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rohan",
+    role: "volunteer",
+    status: "locked_temporarily",
+    failed_login_attempts: 5,
+    locked_until: "2026-09-20T12:00:00Z",
+    created_at: "2026-08-22T10:00:00Z",
   },
 ];
 
@@ -1523,4 +1570,206 @@ export const SEED_PERMISSION_REQUESTS: PermissionRequest[] = [
     created_at: "2026-09-18T12:00:00Z",
   },
 ];
+
+// Seed Projects (Section 2 & 5)
+export const SEED_PROJECTS: Project[] = [
+  {
+    id: "proj-techfest-2026",
+    club_id: "club-syntax-squad",
+    name: "LJ TechFest 2026",
+    description: "Flagship collegiate tech symposium with hackathons, robotics, keynote stages, and corporate exhibits.",
+    organizer_id: "usr-jay",
+    organizers: ["usr-jay"],
+    status: "active",
+    budget: 15000,
+    start_date: "2026-10-24",
+    end_date: "2026-10-26",
+    created_at: "2026-08-01T00:00:00Z",
+    updated_at: "2026-09-10T10:00:00Z",
+  },
+  {
+    id: "proj-hackathon-2026",
+    club_id: "club-syntax-squad",
+    name: "SyntaxHack 24-Hour Code Challenge",
+    description: "24-hour non-stop collegiate hackathon solving climate, fintech, and AI challenges.",
+    organizer_id: "usr-priya",
+    organizers: ["usr-priya"],
+    status: "active",
+    budget: 8000,
+    start_date: "2026-10-25",
+    end_date: "2026-10-26",
+    created_at: "2026-08-05T00:00:00Z",
+    updated_at: "2026-09-12T10:00:00Z",
+  },
+  {
+    id: "proj-stem-outreach",
+    club_id: "club-syntax-squad",
+    name: "Community STEM High School Workshop",
+    description: "Weekend STEM and coding bootcamp organized for 120 local high school students.",
+    organizer_id: "usr-jay",
+    organizers: ["usr-jay"],
+    status: "completed",
+    budget: 3000,
+    start_date: "2026-09-01",
+    end_date: "2026-09-03",
+    created_at: "2026-08-10T00:00:00Z",
+    updated_at: "2026-09-04T10:00:00Z",
+  },
+];
+
+// Seed Project Members (Scoped volunteer authorization)
+export const SEED_PROJECT_MEMBERS: ProjectMember[] = [
+  {
+    id: "pm-01",
+    project_id: "proj-techfest-2026",
+    user_id: "usr-jay",
+    role: "organizer",
+    status: "active",
+    joined_at: "2026-08-01T00:00:00Z",
+  },
+  {
+    id: "pm-02",
+    project_id: "proj-techfest-2026",
+    user_id: "usr-rahul",
+    role: "volunteer",
+    status: "active",
+    joined_at: "2026-08-10T00:00:00Z",
+  },
+  {
+    id: "pm-03",
+    project_id: "proj-techfest-2026",
+    user_id: "usr-ananya",
+    role: "volunteer",
+    status: "active",
+    joined_at: "2026-08-11T00:00:00Z",
+  },
+  {
+    id: "pm-04",
+    project_id: "proj-techfest-2026",
+    user_id: "usr-dev",
+    role: "volunteer",
+    status: "active",
+    joined_at: "2026-08-12T00:00:00Z",
+  },
+  {
+    id: "pm-05",
+    project_id: "proj-techfest-2026",
+    user_id: "usr-sneha",
+    role: "volunteer",
+    status: "active",
+    joined_at: "2026-08-12T00:00:00Z",
+  },
+  {
+    id: "pm-06",
+    project_id: "proj-hackathon-2026",
+    user_id: "usr-priya",
+    role: "organizer",
+    status: "active",
+    joined_at: "2026-08-05T00:00:00Z",
+  },
+  {
+    id: "pm-07",
+    project_id: "proj-hackathon-2026",
+    user_id: "usr-vivek",
+    role: "volunteer",
+    status: "active",
+    joined_at: "2026-08-18T00:00:00Z",
+  },
+  {
+    id: "pm-08",
+    project_id: "proj-hackathon-2026",
+    user_id: "usr-isha",
+    role: "volunteer",
+    status: "active",
+    joined_at: "2026-08-17T00:00:00Z",
+  },
+];
+
+// Seed Sessions
+export const SEED_SESSIONS: UserSession[] = [
+  {
+    id: "sess-admin-01",
+    user_id: "usr-prins",
+    token: "token-prins-session-xyz",
+    ip_address: "192.168.1.10",
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    expires_at: "2026-10-01T00:00:00Z",
+    revoked: false,
+    created_at: "2026-09-19T08:00:00Z",
+  },
+  {
+    id: "sess-org-01",
+    user_id: "usr-jay",
+    token: "token-jay-session-abc",
+    ip_address: "192.168.1.25",
+    user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    expires_at: "2026-09-25T00:00:00Z",
+    revoked: false,
+    created_at: "2026-09-19T09:00:00Z",
+  },
+];
+
+// Seed Progress Reports
+export const SEED_PROGRESS_REPORTS: ProgressReport[] = [
+  {
+    id: "report-01",
+    project_id: "proj-techfest-2026",
+    author_id: "usr-jay",
+    title: "LJ TechFest Weekly Milestone Assessment (Week 6)",
+    summary: "Auditorium booking escalation resolved. Venue preparations are on track with 78% of milestones completed.",
+    completed_tasks: 18,
+    pending_tasks: 6,
+    blocked_tasks: 1,
+    risks_identified: ["Audio equipment frequency clash with engineering campus"],
+    created_at: "2026-09-18T18:00:00Z",
+  },
+  {
+    id: "report-02",
+    project_id: "proj-hackathon-2026",
+    author_id: "usr-priya",
+    title: "SyntaxHack Readiness Report",
+    summary: "GitHub classroom setup complete, 40 mentorship slots confirmed, judging rubric finalized.",
+    completed_tasks: 12,
+    pending_tasks: 4,
+    blocked_tasks: 0,
+    risks_identified: ["Campus Wi-Fi load testing required for 200 concurrent developers"],
+    created_at: "2026-09-19T11:00:00Z",
+  },
+];
+
+// Seed Skills
+export const SEED_SKILLS: string[] = [
+  "Venue Coordination",
+  "Stage Rigging",
+  "AV Hardware",
+  "Web Dev",
+  "Python",
+  "Graphic Design",
+  "Sponsorship Outreach",
+  "Security",
+  "Live Streaming",
+  "First Aid",
+];
+
+// Seed User Skills
+export const SEED_USER_SKILLS: UserSkill[] = [
+  { id: "usk-1", user_id: "usr-rahul", skill: "Venue Coordination", proficiency: "expert" },
+  { id: "usk-2", user_id: "usr-ananya", skill: "Web Dev", proficiency: "expert" },
+  { id: "usk-3", user_id: "usr-dev", skill: "Python", proficiency: "expert" },
+  { id: "usk-4", user_id: "usr-sneha", skill: "Graphic Design", proficiency: "expert" },
+];
+
+// Seed Availability
+export const SEED_AVAILABILITY: AvailabilitySchedule[] = [
+  { id: "av-1", user_id: "usr-rahul", day_of_week: 1, start_time: "09:00", end_time: "18:00", status: "available" },
+  { id: "av-2", user_id: "usr-ananya", day_of_week: 1, start_time: "10:00", end_time: "17:00", status: "available" },
+  { id: "av-3", user_id: "usr-dev", day_of_week: 2, start_time: "12:00", end_time: "20:00", status: "available" },
+];
+
+// Seed Attendance & Time Entries
+export const SEED_TIME_ENTRIES: TimeEntry[] = [
+  { id: "te-1", task_id: "task-01", user_id: "usr-rahul", hours_spent: 4.5, date: "2026-09-15", notes: "Met with Dean office admin", created_at: "2026-09-15T18:00:00Z" },
+  { id: "te-2", task_id: "task-02", user_id: "usr-rahul", hours_spent: 3.0, date: "2026-09-16", notes: "Truss mounting check", created_at: "2026-09-16T17:00:00Z" },
+];
+
 

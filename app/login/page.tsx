@@ -134,6 +134,13 @@ export default function LoginPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 backdrop-blur-2xl shadow-2xl p-6 sm:p-8 space-y-6">
           {/* Header Description */}
           <div className="text-center space-y-2">
+            <Link
+              href="/auth/role"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all mb-2 shadow-sm"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Try New 3-Role Selection Flow (Admin / Organizer / Volunteer) &rarr;</span>
+            </Link>
             <h1 className="text-2xl font-bold tracking-tight text-white">
               Sign In to Command Center
             </h1>

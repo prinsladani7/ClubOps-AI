@@ -48,6 +48,8 @@ export default function TasksPage() {
     escalateTask,
     resolveTaskBlocker,
     showToast,
+    submitTaskEvidence,
+    reviewTaskEvidence,
   } = useClubOps();
 
   const [viewMode, setViewMode] = useState<"kanban" | "table" | "timeline" | "my_tasks">("kanban");
@@ -64,6 +66,11 @@ export default function TasksPage() {
   const [isDelegateModalOpen, setIsDelegateModalOpen] = useState(false);
   const [delegateTargetUserId, setDelegateTargetUserId] = useState("");
   const [delegateReason, setDelegateReason] = useState("");
+
+  // Proof of Work / Evidence modal state
+  const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState(false);
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [evidenceNotes, setEvidenceNotes] = useState("");
 
   // Form State for new task
   const [title, setTitle] = useState("");
@@ -757,6 +764,85 @@ export default function TasksPage() {
               </Button>
             </div>
 
+            {/* Proof of Work & Verification Section */}
+            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/50 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Deliverable Proof of Work</span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-emerald-500/40 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/40 h-6 text-[10px] px-2"
+                  onClick={() => setIsEvidenceModalOpen(true)}
+                >
+                  + Submit Proof
+                </Button>
+              </div>
+
+              {activeTaskDetail.evidence && activeTaskDetail.evidence.length > 0 ? (
+                <div className="space-y-2">
+                  {activeTaskDetail.evidence.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="p-2.5 rounded-lg border border-slate-800 bg-slate-900/60 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <a
+                          href={ev.evidence_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-indigo-400 hover:underline flex items-center gap-1 text-[11px] truncate max-w-[220px]"
+                        >
+                          <span>{ev.evidence_url}</span>
+                        </a>
+                        <Badge
+                          variant={ev.approved ? "cyan" : "outline"}
+                          className="text-[9px] font-mono"
+                        >
+                          {ev.approved ? "VERIFIED" : "PENDING REVIEW"}
+                        </Badge>
+                      </div>
+
+                      {ev.notes && (
+                        <p className="text-[11px] text-slate-300">{ev.notes}</p>
+                      )}
+
+                      {(currentUser.role === "admin" || currentUser.role === "organizer") && !ev.approved && (
+                        <div className="flex items-center gap-2 pt-1 border-t border-slate-800/60 mt-1">
+                          <button
+                            onClick={() => {
+                              reviewTaskEvidence(activeTaskDetail.id, ev.id, true);
+                              showToast("Proof approved! Task marked complete.");
+                              setActiveTaskDetail(null);
+                            }}
+                            className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[10px]"
+                          >
+                            ✓ Approve Proof
+                          </button>
+                          <button
+                            onClick={() => {
+                              reviewTaskEvidence(activeTaskDetail.id, ev.id, false, "Needs revision");
+                              showToast("Changes requested from volunteer.");
+                              setActiveTaskDetail(null);
+                            }}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px]"
+                          >
+                            Request Changes
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  No proof-of-work link submitted yet.
+                </p>
+              )}
+            </div>
+
             {activeTaskDetail.dependencies && activeTaskDetail.dependencies.length > 0 && (
               <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-950/20 text-amber-300">
                 ⚠️ This task is waiting on {activeTaskDetail.dependencies.length} prerequisite deliverable(s).
@@ -923,6 +1009,76 @@ export default function TasksPage() {
                   className="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
                 >
                   Confirm Delegation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Submit Evidence / Proof of Work Modal */}
+      {isEvidenceModalOpen && activeTaskDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-2xl border border-emerald-500/40 bg-slate-900/95 p-6 shadow-2xl backdrop-blur-xl space-y-4">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-emerald-400" />
+              <span>Submit Proof of Work / Deliverable</span>
+            </h3>
+            <p className="text-xs text-slate-400">
+              Submit verifiable evidence for "{activeTaskDetail.title}". Organizers will review and approve.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!evidenceUrl.trim()) return;
+                submitTaskEvidence(activeTaskDetail.id, evidenceUrl.trim(), evidenceNotes.trim());
+                setEvidenceUrl("");
+                setEvidenceNotes("");
+                setIsEvidenceModalOpen(false);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Verifiable Evidence Link / PR / Artifact URL
+                </label>
+                <input
+                  type="url"
+                  value={evidenceUrl}
+                  onChange={(e) => setEvidenceUrl(e.target.value)}
+                  placeholder="https://github.com/prinsladani7/ClubOps-AI/pull/12 or photo/drive link"
+                  required
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Submission Notes & Verification Details
+                </label>
+                <textarea
+                  value={evidenceNotes}
+                  onChange={(e) => setEvidenceNotes(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Cisco switch installed on rack 2, cables patched and ping tests passing with 0% packet loss..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEvidenceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-sm"
+                >
+                  Submit for Review
                 </button>
               </div>
             </form>

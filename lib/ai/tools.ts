@@ -121,6 +121,17 @@ export const ReviewPermissionRequestSchema = z.object({
   review_notes: z.string().optional(),
 });
 
+export const BreakdownProjectSchema = z.object({
+  project_id: z.string().optional(),
+  goal: z.string().min(3),
+  target_deadline: z.string().optional(),
+});
+
+export const RebalanceWorkloadSchema = z.object({
+  threshold_score: z.number().default(80),
+  max_reassignments: z.number().default(3),
+});
+
 // 2. Typed Tool Registry with Permission & Safety Tier Rules
 export const TOOL_REGISTRY: Record<AIToolName, ToolDefinition> = {
   create_task: {
@@ -279,6 +290,22 @@ export const TOOL_REGISTRY: Record<AIToolName, ToolDefinition> = {
     name: "review_permission_request",
     description: "Approve, reject, or temporarily grant a permission request.",
     schema: ReviewPermissionRequestSchema,
+    sideEffectTier: "confirm",
+    minRole: "organizer",
+    requiresConfirmation: true,
+  },
+  breakdown_project: {
+    name: "breakdown_project",
+    description: "Break down an event or project goal into actionable tasks with skill tags and dependencies.",
+    schema: BreakdownProjectSchema,
+    sideEffectTier: "confirm",
+    minRole: "organizer",
+    requiresConfirmation: true,
+  },
+  rebalance_workload: {
+    name: "rebalance_workload",
+    description: "Analyze team workload and generate balanced task reassignments to prevent volunteer burnout.",
+    schema: RebalanceWorkloadSchema,
     sideEffectTier: "confirm",
     minRole: "organizer",
     requiresConfirmation: true,

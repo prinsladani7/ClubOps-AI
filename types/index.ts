@@ -1,12 +1,35 @@
 export type UserRole = "admin" | "organizer" | "volunteer" | "member";
 
+export type AccountStatus =
+  | "active"
+  | "pending_verification"
+  | "suspended"
+  | "deactivated"
+  | "locked_temporarily";
+
 export interface User {
   id: string;
   email: string;
   name: string;
   avatar_url?: string;
   role: UserRole;
-  status?: "active" | "suspended";
+  status?: AccountStatus;
+  verification_token?: string;
+  failed_login_attempts?: number;
+  locked_until?: string;
+  created_at: string;
+  phone?: string;
+  bio?: string;
+}
+
+export interface UserSession {
+  id: string;
+  user_id: string;
+  token: string;
+  ip_address?: string;
+  user_agent?: string;
+  expires_at: string;
+  revoked: boolean;
   created_at: string;
 }
 
@@ -23,7 +46,40 @@ export interface ClubMember {
   club_id: string;
   user_id: string;
   role: UserRole;
-  status: "active" | "invited" | "suspended";
+  status: "active" | "invited" | "suspended" | "deactivated";
+  joined_at: string;
+  user?: User;
+}
+
+// -------------------------------------------------------------
+// PROJECTS (Section 2 & 5)
+// -------------------------------------------------------------
+export interface Project {
+  id: string;
+  club_id?: string;
+  name: string;
+  description: string;
+  organizer_id: string; // Primary/Lead organizer assigned
+  organizers?: string[]; // Allowed organizers assigned to project
+  status: "active" | "completed" | "archived" | "suspended";
+  start_date?: string;
+  end_date?: string;
+  budget?: number;
+  created_at: string;
+  updated_at?: string;
+  organizer?: User;
+  members?: ProjectMember[];
+  task_count?: number;
+  completed_task_count?: number;
+  overdue_task_count?: number;
+}
+
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: "organizer" | "volunteer";
+  status: "active" | "deactivated" | "suspended";
   joined_at: string;
   user?: User;
 }
@@ -45,12 +101,41 @@ export interface Event {
 }
 
 // -------------------------------------------------------------
-// SCOPED PERMISSION MODEL (Section 4 & 18)
-// USER -> ROLE -> SCOPE -> RESOURCE -> ACTION
+// SCOPED PERMISSION MODEL (Section 3 & 4 & 18)
+// Explicit permissions from Specification:
+// project:create, project:view_all, project:view, project:update, project:archive
+// member:add, member:remove
+// organizer:create, organizer:remove
+// volunteer:add, volunteer:remove
+// task:create, task:assign, task:update, task:complete
+// report:view, report:create
+// audit:view, settings:manage, session:revoke
 // -------------------------------------------------------------
-export type PermissionScope = "organization" | "team" | "event" | "task";
+export type PermissionScope = "organization" | "project" | "team" | "event" | "task";
 
-export type PermissionAction =
+export type ExplicitPermission =
+  | "project:create"
+  | "project:view_all"
+  | "project:view"
+  | "project:update"
+  | "project:archive"
+  | "member:add"
+  | "member:remove"
+  | "organizer:create"
+  | "organizer:remove"
+  | "volunteer:add"
+  | "volunteer:remove"
+  | "task:create"
+  | "task:assign"
+  | "task:update"
+  | "task:complete"
+  | "report:view"
+  | "report:create"
+  | "audit:view"
+  | "settings:manage"
+  | "session:revoke";
+
+export type LegacyPermissionAction =
   | "CREATE_TEAM"
   | "EDIT_TEAM"
   | "ARCHIVE_TEAM"
@@ -76,6 +161,8 @@ export type PermissionAction =
   | "VIEW_AUDIT"
   | "MANAGE_SETTINGS";
 
+export type PermissionAction = ExplicitPermission | LegacyPermissionAction;
+
 // -------------------------------------------------------------
 // HIERARCHICAL TEAM MANAGEMENT (Section 2 & 5)
 // -------------------------------------------------------------
@@ -83,6 +170,7 @@ export interface Team {
   id: string;
   club_id: string;
   event_id?: string;
+  project_id?: string;
   name: string;
   description: string;
   organizer_id: string; // The primary organizer assigned
@@ -104,7 +192,7 @@ export interface TeamMember {
   user_id: string;
   role: "organizer" | "volunteer" | "acting_organizer";
   joined_at: string;
-  status: "active" | "suspended";
+  status: "active" | "suspended" | "deactivated";
   user?: User;
 }
 
@@ -116,7 +204,7 @@ export interface RoleAssignment {
   user_id: string;
   role: string; // e.g. "REGISTRATION_LEAD", "STAGE_LEAD", "TECHNICAL_LEAD", "ACTING_ORGANIZER"
   scope_type: PermissionScope;
-  scope_id: string; // team_id or event_id
+  scope_id: string; // team_id, project_id, or event_id
   starts_at: string;
   expires_at: string;
   status: "active" | "expired" | "revoked";
@@ -160,12 +248,88 @@ export interface AITeamRecommendation {
   reasoning: string[];
 }
 
-export type TaskStatus = "backlog" | "todo" | "in_progress" | "review" | "done" | "blocked";
-export type TaskPriority = "low" | "medium" | "high" | "critical";
+export interface AIProjectBreakdownTask {
+  title: string;
+  description: string;
+  estimated_hours: number;
+  priority: TaskPriority;
+  required_skills: string[];
+  suggested_assignee_id?: string;
+  suggested_assignee_name?: string;
+  dependencies?: string[]; // indices or temporary ids
+}
+
+export interface AIProjectBreakdownResult {
+  project_id?: string;
+  project_name: string;
+  summary: string;
+  suggested_tasks: AIProjectBreakdownTask[];
+  estimated_total_hours: number;
+  risk_factors: string[];
+}
+
+export interface AIWorkloadRebalanceSuggestion {
+  from_user_id: string;
+  from_user_name: string;
+  to_user_id: string;
+  to_user_name: string;
+  task_id: string;
+  task_title: string;
+  reason: string;
+  workload_delta: {
+    from_before: number;
+    from_after: number;
+    to_before: number;
+    to_after: number;
+  };
+}
 
 // -------------------------------------------------------------
-// DELEGATION & ESCALATION ON TASK (Section 7 & 11)
+// TASK WORKFLOW (Section 4)
+// Pending → Accepted → In Progress → Blocked → Submitted → Completed
 // -------------------------------------------------------------
+export type TaskWorkflowStatus =
+  | "pending"
+  | "accepted"
+  | "in_progress"
+  | "blocked"
+  | "submitted"
+  | "completed";
+
+export type TaskStatus =
+  | TaskWorkflowStatus
+  | "backlog"
+  | "todo"
+  | "review"
+  | "done";
+
+export type TaskPriority = "low" | "medium" | "high" | "critical";
+
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface TaskEvidence {
+  id: string;
+  task_id: string;
+  evidence_url: string;
+  notes?: string;
+  submitted_at: string;
+  submitted_by: string;
+  approved?: boolean;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  user?: User;
+}
+
 export interface TaskDelegationStep {
   step?: number;
   from_user_id: string;
@@ -183,8 +347,9 @@ export interface TaskAssignmentHistory {
 
 export interface Task {
   id: string;
-  event_id: string;
-  team_id?: string; // Scoped team assignment
+  event_id?: string;
+  project_id?: string;
+  team_id?: string;
   title: string;
   description: string;
   owner_id?: string; // assigned_to
@@ -198,17 +363,25 @@ export interface Task {
   owner?: User;
   dependencies?: string[]; // Task IDs this task depends on
   dependents?: string[];   // Task IDs depending on this task
+  checklist?: TaskChecklistItem[];
+  comments?: TaskComment[];
+  evidence?: TaskEvidence[];
+  estimated_hours?: number;
+  actual_hours?: number;
+  is_overdue?: boolean;
 
-  // Section 7: Delegation
+  // Delegation & Escalation
   delegation_chain?: TaskDelegationStep[];
   assignment_history?: TaskAssignmentHistory[];
-
-  // Section 11: Emergency Escalation
+  is_blocked?: boolean;
+  blocker_reason?: string;
   blocked_at?: string;
-  escalation_level?: "volunteer" | "organizer" | "admin";
+  escalation_level?: "volunteer" | "organizer" | "admin" | "NONE" | "ORGANIZER" | "ADMIN";
   escalated_to?: string;
   escalated_at?: string;
   resolution_status?: "pending" | "investigating" | "resolved";
+  category?: string;
+  skills?: string[];
 }
 
 export interface TaskDependency {
@@ -218,31 +391,77 @@ export interface TaskDependency {
   dependency_type: "blocks" | "relates_to";
 }
 
-export interface TaskComment {
-  id: string;
-  task_id: string;
-  user_id: string;
-  content: string;
-  created_at: string;
-  user?: User;
-}
-
 export interface Volunteer {
   id: string;
   club_id: string;
   user_id: string;
   team_id?: string;
+  project_ids?: string[];
   skills: string[];
   availability: "available" | "busy" | "overloaded" | "unavailable";
   notes: string;
   user?: User;
   assignedTasks?: Task[];
   workloadScore?: number; // 0 to 100
+  total_hours_logged?: number;
+}
+
+export interface UserSkill {
+  id: string;
+  user_id: string;
+  skill: string;
+  proficiency: "beginner" | "intermediate" | "expert";
+}
+
+export interface AvailabilitySchedule {
+  id: string;
+  user_id: string;
+  day_of_week: number; // 0=Sunday, 6=Saturday
+  start_time: string;
+  end_time: string;
+  status: "available" | "busy" | "unavailable";
+}
+
+export interface TimeEntry {
+  id: string;
+  task_id: string;
+  user_id: string;
+  hours_spent: number;
+  date: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface ProgressReport {
+  id: string;
+  project_id: string;
+  author_id: string;
+  title: string;
+  summary: string;
+  completed_tasks: number;
+  pending_tasks: number;
+  blocked_tasks: number;
+  risks_identified: string[];
+  created_at: string;
+  author?: User;
+}
+
+export interface Invitation {
+  id: string;
+  club_id: string;
+  email: string;
+  role: UserRole;
+  token: string;
+  status: "pending" | "accepted" | "expired" | "revoked";
+  created_by: string;
+  created_at: string;
+  expires_at: string;
 }
 
 export interface Meeting {
   id: string;
-  event_id: string;
+  event_id?: string;
+  project_id?: string;
   team_id?: string;
   title: string;
   scheduled_at: string;
@@ -270,6 +489,7 @@ export interface Document {
   id: string;
   club_id: string;
   event_id?: string;
+  project_id?: string;
   team_id?: string;
   name: string;
   storage_path: string;
@@ -289,6 +509,7 @@ export interface DocumentChunk {
   metadata: {
     club_id: string;
     event_id?: string;
+    project_id?: string;
     team_id?: string;
     document_name: string;
     visibility: DocumentVisibility;
@@ -301,7 +522,8 @@ export type RiskSeverity = "low" | "medium" | "high" | "critical";
 
 export interface Risk {
   id: string;
-  event_id: string;
+  event_id?: string;
+  project_id?: string;
   team_id?: string;
   title: string;
   description: string;
@@ -320,6 +542,7 @@ export interface Risk {
 export interface Announcement {
   id: string;
   event_id?: string;
+  project_id?: string;
   team_id?: string;
   title: string;
   body: string;
@@ -342,12 +565,14 @@ export interface Notification {
 
 export interface AuditLog {
   id: string;
-  club_id: string;
+  club_id?: string;
   actor_user_id: string;
   actor_type: "user" | "ai" | "system";
   action: string;
   entity_type: string;
   entity_id: string;
+  resource?: string;
+  actor_role?: string;
   metadata_json: Record<string, any>;
   created_at: string;
   actor?: User;
@@ -374,6 +599,8 @@ export type AIToolName =
   | "get_calendar"
   | "create_team"
   | "recommend_team"
+  | "breakdown_project"
+  | "rebalance_workload"
   | "request_permission"
   | "review_permission_request";
 

@@ -1,0 +1,23 @@
+-- Master Schema definition for ClubOps AI (PostgreSQL / Supabase)
+-- Auto-synced from supabase/migrations/20260919000000_init_rbac_schema.sql
+-- Contains all 18 core normalized relational tables:
+-- 1. users
+-- 2. roles
+-- 3. user_roles
+-- 4. projects
+-- 5. project_members
+-- 6. tasks
+-- 7. task_dependencies
+-- 8. task_comments
+-- 9. task_evidence
+-- 10. notifications
+-- 11. invitations
+-- 12. progress_reports
+-- 13. audit_logs
+-- 14. user_sessions
+-- 15. skills
+-- 16. user_skills
+-- 17. availability
+-- 18. attendance_time_entries
+
+\i supabase/migrations/20260919000000_init_rbac_schema.sql

@@ -1,29 +1,39 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { Toast } from "@/components/ui/Toast";
 import { useClubOps } from "@/components/providers/ClubOpsContext";
 import { canAccessRoute } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { ShieldAlert, LogIn, Lock, ArrowLeft, KeyRound } from "lucide-react";
+import { LogIn, Lock, ArrowLeft, KeyRound, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { RequestAccessModal } from "@/components/rbac/RequestAccessModal";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isAuthenticated, currentUser, roleAssignments, toastMessage } = useClubOps();
+  const router = useRouter();
+  const { isAuthenticated, isHydrated, currentUser, roleAssignments, toastMessage } = useClubOps();
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const loggedRef = useRef<string | null>(null);
 
-  const isAuthPage = pathname === "/login";
-  const isAllowed = canAccessRoute(currentUser, pathname, roleAssignments);
+  const isAuthPage = pathname === "/login" || pathname.startsWith("/auth");
+
+  // Compulsory Login: If not on an auth route and unauthenticated, redirect immediately
+  useEffect(() => {
+    if (isHydrated && !isAuthenticated && !isAuthPage) {
+      router.replace("/auth/role");
+    }
+  }, [isHydrated, isAuthenticated, isAuthPage, router]);
+
+  // Check RBAC route permission for authenticated user
+  const isAllowed = isAuthPage || (isAuthenticated && canAccessRoute(currentUser, pathname, roleAssignments));
 
   // Automatically record unauthorized route attempt in audit logs (Section 15)
   useEffect(() => {
-    if (!isAllowed && !isAuthPage && loggedRef.current !== pathname) {
+    if (isAuthenticated && !isAllowed && !isAuthPage && loggedRef.current !== pathname) {
       loggedRef.current = pathname;
       db.addAuditLog({
         actor_user_id: currentUser.id,
@@ -38,32 +48,60 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         },
       });
     }
-  }, [isAllowed, isAuthPage, pathname, currentUser]);
+  }, [isAllowed, isAuthPage, pathname, currentUser, isAuthenticated]);
 
   return (
     <div className="min-h-screen bg-[#070A11] text-slate-100 flex flex-col selection:bg-indigo-500/30 selection:text-indigo-200">
       {isAuthPage ? (
         <main className="min-h-screen flex flex-col">{children}</main>
+      ) : !isHydrated ? (
+        /* Gateway Initializing State */
+        <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center shadow-aiGlow mb-4 animate-pulse">
+            <Lock className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-sm font-semibold text-white">ClubOps AI Secure Gateway</h2>
+          <p className="text-xs text-slate-400 mt-1 flex items-center justify-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+            <span>Verifying operational credentials...</span>
+          </p>
+        </main>
+      ) : !isAuthenticated ? (
+        /* MANDATORY LOGIN ENFORCEMENT: Strictly no access without login */
+        <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-rose-600/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative z-10 max-w-md w-full p-8 rounded-2xl border border-rose-500/30 bg-slate-900/80 backdrop-blur-2xl shadow-2xl flex flex-col items-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center shadow-lg shadow-rose-950/50">
+              <Lock className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[11px] font-mono text-rose-400 uppercase font-bold tracking-wider">
+                Authentication Compulsory
+              </span>
+              <h1 className="text-xl font-bold text-white">Access Denied — Login Required</h1>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-sm pt-1">
+                Access to ClubOps AI operations is strictly restricted. You must select an authorized role and log in before accessing club assets.
+              </p>
+            </div>
+
+            <div className="pt-3 w-full flex flex-col sm:flex-row gap-3 items-center justify-center">
+              <Link
+                href="/auth/role"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white shadow-aiGlow transition-all flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Select Role & Sign In</span>
+              </Link>
+            </div>
+          </div>
+        </main>
       ) : (
+        /* Authenticated Operational Experience */
         <div className="flex min-h-screen">
           <Sidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <TopBar />
-            {!isAuthenticated && (
-              <div className="bg-amber-500/15 border-b border-amber-500/30 px-6 py-2.5 flex items-center justify-between text-xs text-amber-300">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-400" />
-                  <span>You are currently in guest preview mode. Sign in to unlock full operational controls.</span>
-                </div>
-                <Link
-                  href="/login"
-                  className="px-3 py-1 rounded bg-amber-500 text-black font-semibold hover:bg-amber-400 transition-colors flex items-center gap-1.5"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Sign In</span>
-                </Link>
-              </div>
-            )}
 
             <main className="flex-1 p-8 overflow-y-auto max-w-7xl w-full mx-auto">
               {!isAllowed ? (

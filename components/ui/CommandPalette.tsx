@@ -47,7 +47,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const {
     tasks,
     users,
-    switchUser,
     triggerRiskAnalysis,
     showToast,
   } = useClubOps();
@@ -210,25 +209,18 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       },
     },
 
-    // Switch Personas
-    ...users.map((u) => ({
-      id: `persona-${u.id}`,
-      title: `Switch Persona: ${u.name}`,
-      subtitle: `Role: ${u.role.toUpperCase()} • Email: ${u.email}`,
-      category: "Switch Persona" as const,
-      icon: Shield,
-      badge: u.role.toUpperCase(),
-      badgeVariant: (u.role === "admin"
-        ? "destructive"
-        : u.role === "organizer"
-        ? "warning"
-        : "cyan") as any,
+    // Team Hierarchy
+    {
+      id: "nav-organizers-volunteers",
+      title: "View Organizers & Volunteers Hierarchy",
+      subtitle: "Per-organizer team breakdown and assigned volunteers roster",
+      category: "Navigation" as const,
+      icon: Users,
       action: () => {
-        switchUser(u.id);
-        showToast(`Switched active persona to ${u.name} (${u.role.toUpperCase()})`);
+        router.push("/admin/organizers");
         onClose();
       },
-    })),
+    },
 
     // Active Tasks
     ...tasks.slice(0, 8).map((t) => ({

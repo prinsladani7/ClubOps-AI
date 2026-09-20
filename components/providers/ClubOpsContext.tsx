@@ -4,7 +4,15 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import {
   User,
   Event,
+  Project,
+  ProjectMember,
+  UserSession,
+  ProgressReport,
+  TimeEntry,
   Task,
+  TaskChecklistItem,
+  TaskComment,
+  TaskEvidence,
   Volunteer,
   Meeting,
   MeetingActionItem,
@@ -22,17 +30,27 @@ import {
   PermissionAction,
   PermissionScope,
   AITeamRecommendation,
+  AIProjectBreakdownResult,
+  AIWorkloadRebalanceSuggestion,
 } from "@/types";
 import { db } from "@/lib/db";
 import { aiProvider } from "@/lib/ai/provider";
+import { CPMSimulationResult, DelayImpactResult } from "@/lib/algorithms/cpm";
+import { OptimizationSummary } from "@/lib/algorithms/workload-optimizer";
+import { HackathonRiskReport } from "@/lib/algorithms/risk-predictor";
+import { RunOfShowReport } from "@/lib/algorithms/run-of-show";
 
 interface ClubOpsContextType {
   currentUser: User;
   switchUser: (userId: string) => void;
   isAuthenticated: boolean;
-  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  isHydrated: boolean;
+  login: (email: string, password?: string, intendedRole?: UserRole) => Promise<{ success: boolean; error?: string; pendingVerification?: boolean }>;
   loginAsPersona: (userId: string) => void;
   register: (name: string, email: string, role: UserRole, password?: string) => Promise<{ success: boolean; error?: string }>;
+  verifyEmail: (tokenOrEmail: string) => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
+  resetPassword: (token: string, newPassword?: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   users: User[];
   event: Event;
@@ -69,6 +87,7 @@ interface ClubOpsContextType {
 
   // RBAC & Teams
   teams: Team[];
+  teamMembers: TeamMember[];
   roleAssignments: RoleAssignment[];
   permissionRequests: PermissionRequest[];
   createTeam: (data: { name: string; description: string; organizer_id: string; event_id?: string }) => Team;
@@ -88,21 +107,88 @@ interface ClubOpsContextType {
   resolveTaskBlocker: (taskId: string, notes?: string) => Task | undefined;
   recommendTeam: (spec: { goal: string; required_skills?: string[]; max_members?: number }) => AITeamRecommendation;
   createTeamFromRecommendation: (rec: AITeamRecommendation) => Team;
+
+  // Projects & Relational Operations (Specification Sections 1, 2, 4, 5, 6)
+  projects: Project[];
+  projectMembers: ProjectMember[];
+  sessions: UserSession[];
+  progressReports: ProgressReport[];
+  createProject: (data: { name: string; description: string; organizer_id: string; budget?: number; start_date?: string; end_date?: string }) => Project;
+  updateProject: (id: string, patch: Partial<Project>) => void;
+  archiveProject: (id: string) => void;
+  addProjectMember: (projectId: string, userId: string, role?: "organizer" | "volunteer") => void;
+  removeProjectMember: (projectMemberId: string, reassignmentUserId?: string) => void;
+  createProgressReport: (data: { project_id: string; title: string; summary: string; completed_tasks: number; pending_tasks: number; blocked_tasks: number; risks_identified?: string[] }) => ProgressReport;
+  acceptTask: (taskId: string) => void;
+  startTask: (taskId: string) => void;
+  blockTask: (taskId: string, blockerReason: string) => void;
+  submitTaskEvidence: (taskId: string, evidenceUrl: string, notes?: string) => void;
+  completeTask: (taskId: string) => void;
+  addChecklistItem: (taskId: string, text: string) => void;
+  toggleChecklistItem: (taskId: string, checklistItemId: string) => void;
+  addTaskComment: (taskId: string, content: string) => void;
+  logTimeEntry: (data: { task_id: string; hours_spent: number; date: string; notes?: string }) => void;
+  breakdownProject: (spec: { goal: string; project_id?: string; target_deadline?: string }) => AIProjectBreakdownResult;
+  rebalanceWorkload: (thresholdScore?: number) => AIWorkloadRebalanceSuggestion[];
+  applyWorkloadRebalance: (suggestions: AIWorkloadRebalanceSuggestion[]) => void;
+  revokeSession: (sessionId: string) => void;
+  revokeAllSessions: (userId?: string) => void;
+  requestTaskChanges: (taskId: string, feedback: string) => void;
+  restoreProject: (id: string) => void;
+  freezeProjectChanges: (id: string) => void;
+  suspendUser: (userId: string, reason?: string) => void;
+  deactivateUser: (userId: string, reason?: string) => void;
+  activateUser: (userId: string) => void;
+
+  // Mathematical Algorithms & Real-Time Operations
+  getCriticalPathAnalysis: () => CPMSimulationResult;
+  simulateTaskDelay: (taskId: string, delayHours: number) => DelayImpactResult;
+  getOptimizedWorkload: () => OptimizationSummary;
+  getHackathonRiskReport: () => HackathonRiskReport;
+  getRunOfShowAnalysis: (currentHour?: number) => RunOfShowReport;
+  reviewTaskEvidence: (taskId: string, evidenceId: string, approved: boolean, notes?: string) => boolean;
 }
 
 const ClubOpsContext = createContext<ClubOpsContextType | undefined>(undefined);
 
 export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User>(() => db.getCurrentUser());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("clubops_auth");
-      return stored !== null ? stored === "true" : true;
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const storedAuth = localStorage.getItem("clubops_auth") === "true";
+        const storedUserId = localStorage.getItem("clubops_user_id");
+        if (storedAuth && storedUserId) {
+          const u = db.getUserById(storedUserId);
+          if (u && u.status === "active") {
+            db.setCurrentUser(u.id);
+            setCurrentUser(u);
+            setIsAuthenticated(true);
+          } else {
+            localStorage.removeItem("clubops_auth");
+            localStorage.removeItem("clubops_user_id");
+            setIsAuthenticated(false);
+          }
+        } else {
+          setIsAuthenticated(false);
+        }
+      }
+    } catch {
+      setIsAuthenticated(false);
+    } finally {
+      setIsHydrated(true);
     }
-    return true;
-  });
+  }, []);
   const [users, setUsers] = useState<User[]>(() => db.getUsers());
   const [event, setEvent] = useState<Event>(() => db.getEvent());
+  const [projects, setProjects] = useState<Project[]>(() => db.getProjects());
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>(() => db.getAllProjectMembers());
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => db.getAllTeamMembers());
+  const [sessions, setSessions] = useState<UserSession[]>(() => db.getUserSessions());
+  const [progressReports, setProgressReports] = useState<ProgressReport[]>(() => db.getProgressReports());
   const [tasks, setTasks] = useState<Task[]>(() => db.getTasks());
   const [volunteers, setVolunteers] = useState<Volunteer[]>(() => db.getVolunteers());
   const [meetings, setMeetings] = useState<Meeting[]>(() => db.getMeetings());
@@ -126,6 +212,11 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(db.getCurrentUser());
     setUsers(db.getUsers());
     setEvent(db.getEvent());
+    setProjects(db.getProjects());
+    setProjectMembers(db.getAllProjectMembers());
+    setTeamMembers(db.getAllTeamMembers());
+    setSessions(db.getUserSessions());
+    setProgressReports(db.getProgressReports());
     setTasks(db.getTasks());
     setVolunteers(db.getVolunteers());
     setMeetings(db.getMeetings());
@@ -158,20 +249,21 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     showToast(`Welcome back, ${user.name}! Authenticated as ${user.role.toUpperCase()}.`);
   }, [refreshAll, showToast]);
 
-  const login = useCallback(async (email: string, password?: string) => {
-    const user = db.getUserByEmail(email);
-    if (!user) {
-      return { success: false, error: "No account found matching this email address. Please try demo personas or register." };
+  const login = useCallback(async (email: string, password?: string, intendedRole?: UserRole) => {
+    const res = db.loginUser(email, password, intendedRole);
+    if (!res.success) {
+      return res;
     }
-    db.setCurrentUser(user.id);
-    setCurrentUser(user);
-    setIsAuthenticated(true);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("clubops_auth", "true");
-      localStorage.setItem("clubops_user_id", user.id);
+    if (res.user) {
+      setCurrentUser(res.user);
+      setIsAuthenticated(true);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("clubops_auth", "true");
+        localStorage.setItem("clubops_user_id", res.user.id);
+      }
+      refreshAll();
+      showToast(`Signed in successfully as ${res.user.name} (${res.user.role.toUpperCase()}).`);
     }
-    refreshAll();
-    showToast(`Signed in successfully as ${user.name}.`);
     return { success: true };
   }, [refreshAll, showToast]);
 
@@ -192,12 +284,36 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [refreshAll, showToast]);
 
+  const verifyEmail = useCallback(async (tokenOrEmail: string) => {
+    const res = db.verifyEmail(tokenOrEmail);
+    refreshAll();
+    if (res.success) {
+      showToast("Email successfully verified! Account is now active.");
+    }
+    return res;
+  }, [refreshAll, showToast]);
+
+  const forgotPassword = useCallback(async (email: string) => {
+    const res = db.forgotPassword(email);
+    refreshAll();
+    showToast(res.message);
+    return res;
+  }, [refreshAll, showToast]);
+
+  const resetPassword = useCallback(async (token: string, newPassword?: string) => {
+    const res = db.resetPassword(token, newPassword);
+    refreshAll();
+    showToast(res.message);
+    return res;
+  }, [refreshAll, showToast]);
+
   const logout = useCallback(() => {
     setIsAuthenticated(false);
     if (typeof window !== "undefined") {
-      localStorage.setItem("clubops_auth", "false");
+      localStorage.removeItem("clubops_auth");
+      localStorage.removeItem("clubops_user_id");
     }
-    showToast("You have been signed out.");
+    showToast("You have been signed out. Please log in to continue.");
   }, [showToast]);
 
   const updateEventDetails = useCallback((patch: Partial<Event>) => {
@@ -394,19 +510,210 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
     return team;
   }, [refreshAll, showToast]);
 
+  // Project & Task Workflow Context Handlers
+  const createProject = useCallback((data: { name: string; description: string; organizer_id: string; budget?: number; start_date?: string; end_date?: string }) => {
+    const proj = db.createProject(data);
+    refreshAll();
+    showToast(`Project "${proj.name}" established.`);
+    return proj;
+  }, [refreshAll, showToast]);
+
+  const updateProject = useCallback((id: string, patch: Partial<Project>) => {
+    db.updateProject(id, patch);
+    refreshAll();
+    showToast("Project details updated.");
+  }, [refreshAll, showToast]);
+
+  const archiveProject = useCallback((id: string) => {
+    db.archiveProject(id);
+    refreshAll();
+    showToast("Project archived.");
+  }, [refreshAll, showToast]);
+
+  const addProjectMember = useCallback((projectId: string, userId: string, role?: "organizer" | "volunteer") => {
+    db.addProjectMember(projectId, userId, role);
+    refreshAll();
+    showToast("Member assigned to project scope.");
+  }, [refreshAll, showToast]);
+
+  const removeProjectMember = useCallback((projectMemberId: string, reassignmentUserId?: string) => {
+    const res = db.removeProjectMember(projectMemberId, reassignmentUserId);
+    refreshAll();
+    showToast(`Member deactivated (${res.impactedTasksCount} tasks ${reassignmentUserId ? "reassigned" : "pending reassignment"}).`);
+  }, [refreshAll, showToast]);
+
+  const createProgressReport = useCallback((data: { project_id: string; title: string; summary: string; completed_tasks: number; pending_tasks: number; blocked_tasks: number; risks_identified?: string[] }) => {
+    const rep = db.createProgressReport(data);
+    refreshAll();
+    showToast(`Progress Report "${rep.title}" published.`);
+    return rep;
+  }, [refreshAll, showToast]);
+
+  const acceptTask = useCallback((taskId: string) => {
+    db.acceptTask(taskId);
+    refreshAll();
+    showToast("Task accepted.");
+  }, [refreshAll, showToast]);
+
+  const startTask = useCallback((taskId: string) => {
+    db.startTask(taskId);
+    refreshAll();
+    showToast("Task moved to In Progress.");
+  }, [refreshAll, showToast]);
+
+  const blockTask = useCallback((taskId: string, blockerReason: string) => {
+    db.blockTask(taskId, blockerReason);
+    refreshAll();
+    showToast("Task flagged as Blocked.");
+  }, [refreshAll, showToast]);
+
+  const submitTaskEvidence = useCallback((taskId: string, evidenceUrl: string, notes?: string) => {
+    db.submitTaskEvidence(taskId, evidenceUrl, notes);
+    refreshAll();
+    showToast("Deliverable evidence submitted for verification.");
+  }, [refreshAll, showToast]);
+
+  const completeTask = useCallback((taskId: string) => {
+    db.completeTask(taskId);
+    refreshAll();
+    showToast("Task verified & completed!");
+  }, [refreshAll, showToast]);
+
+  const addChecklistItem = useCallback((taskId: string, text: string) => {
+    db.addChecklistItem(taskId, text);
+    refreshAll();
+  }, [refreshAll]);
+
+  const toggleChecklistItem = useCallback((taskId: string, checklistItemId: string) => {
+    db.toggleChecklistItem(taskId, checklistItemId);
+    refreshAll();
+  }, [refreshAll]);
+
+  const addTaskComment = useCallback((taskId: string, content: string) => {
+    db.addTaskComment(taskId, content);
+    refreshAll();
+    showToast("Comment recorded.");
+  }, [refreshAll, showToast]);
+
+  const logTimeEntry = useCallback((data: { task_id: string; hours_spent: number; date: string; notes?: string }) => {
+    db.logTimeEntry(data);
+    refreshAll();
+    showToast(`Logged ${data.hours_spent} hours.`);
+  }, [refreshAll, showToast]);
+
+  const breakdownProject = useCallback((spec: { goal: string; project_id?: string; target_deadline?: string }) => {
+    return db.breakdownProject(spec);
+  }, []);
+
+  const rebalanceWorkload = useCallback((thresholdScore?: number) => {
+    return db.rebalanceWorkload(thresholdScore);
+  }, []);
+
+  const applyWorkloadRebalance = useCallback((suggestions: AIWorkloadRebalanceSuggestion[]) => {
+    const count = db.applyWorkloadRebalance(suggestions);
+    refreshAll();
+    showToast(`Successfully reallocated ${count} tasks across volunteer roster.`);
+  }, [refreshAll, showToast]);
+
+  const revokeSession = useCallback((sessionId: string) => {
+    db.revokeSession(sessionId);
+    refreshAll();
+    showToast("Session revoked.");
+  }, [refreshAll, showToast]);
+
+  const revokeAllSessions = useCallback((userId?: string) => {
+    const count = db.revokeAllSessions(userId);
+    refreshAll();
+    showToast(`Revoked ${count} active session(s).`);
+  }, [refreshAll, showToast]);
+
+  const requestTaskChanges = useCallback((taskId: string, feedback: string) => {
+    db.requestTaskChanges(taskId, feedback);
+    refreshAll();
+    showToast("Feedback submitted. Changes requested from volunteer.");
+  }, [refreshAll, showToast]);
+
+  const restoreProject = useCallback((id: string) => {
+    db.restoreProject(id);
+    refreshAll();
+    showToast("Project restored to active status.");
+  }, [refreshAll, showToast]);
+
+  const freezeProjectChanges = useCallback((id: string) => {
+    db.freezeProjectChanges(id);
+    refreshAll();
+    showToast("Emergency Freeze: Project changes halted.");
+  }, [refreshAll, showToast]);
+
+  const suspendUser = useCallback((userId: string, reason?: string) => {
+    db.suspendUser(userId, reason);
+    refreshAll();
+    showToast("Account suspended and all active sessions revoked.");
+  }, [refreshAll, showToast]);
+
+  const deactivateUser = useCallback((userId: string, reason?: string) => {
+    db.deactivateUser(userId, reason);
+    refreshAll();
+    showToast("Account deactivated.");
+  }, [refreshAll, showToast]);
+
+  const activateUser = useCallback((userId: string) => {
+    db.activateUser(userId);
+    refreshAll();
+    showToast("Account restored to active state.");
+  }, [refreshAll, showToast]);
+
+  const getCriticalPathAnalysis = useCallback(() => {
+    return db.getCriticalPathAnalysis();
+  }, []);
+
+  const simulateTaskDelay = useCallback((taskId: string, delayHours: number) => {
+    return db.simulateTaskDelay(taskId, delayHours);
+  }, []);
+
+  const getOptimizedWorkload = useCallback(() => {
+    return db.getOptimizedWorkload();
+  }, []);
+
+  const getHackathonRiskReport = useCallback(() => {
+    return db.getHackathonRiskReport();
+  }, []);
+
+  const getRunOfShowAnalysis = useCallback((currentHour?: number) => {
+    return db.getRunOfShowAnalysis(currentHour);
+  }, []);
+
+  const reviewTaskEvidence = useCallback((taskId: string, evidenceId: string, approved: boolean, notes?: string) => {
+    const success = db.reviewTaskEvidence(taskId, evidenceId, approved, notes);
+    refreshAll();
+    showToast(approved ? "Evidence approved. Task marked complete!" : "Changes requested from volunteer.");
+    return success;
+  }, [refreshAll, showToast]);
+
   return (
     <ClubOpsContext.Provider
       value={{
         currentUser,
         switchUser,
         isAuthenticated,
+        isHydrated,
         login,
         loginAsPersona,
         register,
+        verifyEmail,
+        forgotPassword,
+        resetPassword,
         logout,
         users,
         event,
         updateEventDetails,
+        revokeAllSessions,
+        requestTaskChanges,
+        restoreProject,
+        freezeProjectChanges,
+        suspendUser,
+        deactivateUser,
+        activateUser,
         tasks,
         refreshTasks: refreshAll,
         createNewTask,
@@ -432,6 +739,7 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
         toastMessage,
         showToast,
         teams,
+        teamMembers,
         roleAssignments,
         permissionRequests,
         createTeam,
@@ -451,6 +759,35 @@ export function ClubOpsProvider({ children }: { children: React.ReactNode }) {
         resolveTaskBlocker,
         recommendTeam,
         createTeamFromRecommendation,
+        projects,
+        projectMembers,
+        sessions,
+        progressReports,
+        createProject,
+        updateProject,
+        archiveProject,
+        addProjectMember,
+        removeProjectMember,
+        createProgressReport,
+        acceptTask,
+        startTask,
+        blockTask,
+        submitTaskEvidence,
+        completeTask,
+        addChecklistItem,
+        toggleChecklistItem,
+        addTaskComment,
+        logTimeEntry,
+        breakdownProject,
+        rebalanceWorkload,
+        applyWorkloadRebalance,
+        revokeSession,
+        getCriticalPathAnalysis,
+        simulateTaskDelay,
+        getOptimizedWorkload,
+        getHackathonRiskReport,
+        getRunOfShowAnalysis,
+        reviewTaskEvidence,
       }}
     >
       {children}
